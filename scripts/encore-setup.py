@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import os
 import shlex
 import subprocess
 
@@ -7,6 +8,10 @@ MYSQL_USER      = 'flask-user'
 MYSQL_USER_PASS = 'flask-user-pass'
 MYSQL_ROOT_PASS = 'test-pass'
 MYSQL_SERVER    = 'localhost'
+
+ENCORE_URL      = 'localhost'
+ENCORE_PATH     = '/srv/encore'
+
 
 def install_packages():
     packages = ['apache2',
@@ -53,13 +58,59 @@ def setup_mysql():
         "ALTER USER 'root'@'%s' IDENTIFIED WITH mysql_native_password BY '%s'" % (MYSQL_SERVER, MYSQL_ROOT_PASS)])
 
 def setup_apache():
-    pass
+    conf = """
+<VirtualHost *:80>
+    ServerAdmin webmaster@{encore_url}
+    ServerName {encore_url}
+    Redirect permanent / https://{encore_url}/
+    ErrorLog "/var/log/apache2/{encore_url}-error.log"
+    CustomLog "/var/log/apache2/{encore_url}-access.log" common
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerAdmin webmaster@{encore_url}
+    DocumentRoot "{encore_path}"
+    ServerName {encore_url}
+    ErrorLog "/var/log/apache2/{encore_url}-error.log"
+    CustomLog "/var/log/apache2/{encore_url}-access.log" common
+
+    SSLEngine on
+
+    SSLCertificateFile    /etc/ssl/certs/{encore_url}.cert
+    SSLCertificateKeyFile /etc/ssl/private/{encore_url}.key
+
+    WSGIDaemonProcess {encore_url} processes=1 threads=1 user=encore group=encore home={encore_path}
+    WSGIProcessGroup {encore_url}
+    WSGIScriptAlias / {encore_path}/encore.wsgi
+	WSGIPassAuthorization On
+
+    <Location /server-info>
+      SetHandler server-info
+      Order deny,allow
+      Deny from all
+    </Location>
+
+    <Directory {encore_path}>
+        Require all granted
+    </Directory>
+
+    <Files {encore_path}/encore.wsgi>
+        Require all granted
+    </Files>
+</VirtualHost>
+""".format(encore_url = ENCORE_URL, encore_path = ENCORE_PATH)
+
+    if not os.path.exists('/etc/apache2/sites-enabled'):
+        os.makedirs('/etc/apache2/sites-enabled')
+    f = open('/etc/apache2/sites-enabled/encore.conf', 'w')
+    f.write(conf)
+    f.close()
 
 def main():
-    install_packages()
-    setup_encore()
-    install_python_requirements()
-    setup_mysql()
+    #install_packages()
+    #setup_encore()
+    #install_python_requirements()
+    #setup_mysql()
     setup_apache()
 
 
