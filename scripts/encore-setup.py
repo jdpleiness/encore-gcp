@@ -3,6 +3,10 @@
 import shlex
 import subprocess
 
+MYSQL_USER      = 'flask-user'
+MYSQL_USER_PASS = 'flask-user-pass'
+MYSQL_ROOT_PASS = 'test-pass'
+MYSQL_SERVER    = 'localhost'
 
 def install_packages():
     packages = ['apache2',
@@ -38,15 +42,15 @@ def setup_mysql():
     subprocess.call(['usermod', '-d', '/var/lib/mysql/', 'mysql'])
     subprocess.call(shlex.split('sudo service mysql start'))
     subprocess.call(['mysql', '-u', 'root', '-e',
-        "CREATE USER 'flask-user'@'localhost' IDENTIFIED BY 'flask-user-pass'"])
+        "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER,MYSQL_USER_PASS)])
     subprocess.call(['mysql', '-u', 'root', '-e',
-        "GRANT DELETE, INSERT, SELECT, UPDATE, EXECUTE ON encore.* TO 'flask-user'@'localhost'"])
+        "GRANT DELETE, INSERT, SELECT, UPDATE, EXECUTE ON encore.* TO '%s'@'%s'" % (MYSQL_USER, MYSQL_SERVER)])
     subprocess.call(['mysql', '-u', 'root', '-e',
         "DELETE FROM mysql.user WHERE User=''"])
     subprocess.call(['mysql', '-u', 'root', '-e',
         "FLUSH PRIVILEGES"])
     subprocess.call(['mysql', '-u', 'root', '-e',
-        "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'test-pass'"])
+        "ALTER USER 'root'@'%s' IDENTIFIED WITH mysql_native_password BY '%s'" % (MYSQL_SERVER, MYSQL_ROOT_PASS)])
 
 def setup_apache():
     pass
