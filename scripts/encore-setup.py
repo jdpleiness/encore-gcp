@@ -106,6 +106,19 @@ def setup_apache():
     f.write(conf)
     f.close()
 
+    wsgi = """
+import os, sys
+
+sys.path.insert(0, '{encore_path}')
+
+from encore import create_app
+application = create_app(os.path.join('{encore_path}', "flask_config.py"))
+""".format(encore_path = ENCORE_PATH)
+
+    f = open(ENCORE_PATH + '/flask_config.py', 'w')
+    f.write(wsgi)
+    f.close()
+
 def main():
     #install_packages()
     #setup_encore()
