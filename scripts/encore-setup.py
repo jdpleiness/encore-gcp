@@ -4,14 +4,44 @@ import os
 import shlex
 import subprocess
 
-MYSQL_USER      = 'flask-user'
-MYSQL_USER_PASS = 'flask-user-pass'
-MYSQL_ROOT_PASS = 'test-pass'
-MYSQL_SERVER    = 'localhost'
+# DB config
+MYSQL_USER          = 'flask-user'
+MYSQL_USER_PASS     = 'flask-user-pass'
+MYSQL_ROOT_PASS     = 'test-pass'
+MYSQL_SERVER        = 'localhost'
 
-ENCORE_URL      = 'localhost'
-ENCORE_PATH     = '/srv/encore'
+# Apache config
+ENCORE_URL          = 'localhost'
+ENCORE_PATH         = '/srv/encore'
 
+# Flask config
+SERVER_NAME         = "localhost:5000"
+JOB_DATA_FOLDER     = "./"
+PHENO_DATA_FOLDER   = "./"
+GENO_DATA_FOLDER    = "./"
+EPACTS_BINARY       = 'epacts'
+QUEUE_JOB_BINARY    = 'sbatch'
+MANHATTAN_BINARY    = 'make_manhattan_json.py'
+QQPLOT_BINARY       = 'make_qq_json.py'
+TOPHITS_BINARY      = 'make_tophits_json.py'
+NEAREST_GENE_BED    = 'data/nearest-gene.bed'
+VCF_FILE            = ""
+HELP_EMAIL          = ""
+SECRET_KEY          = None
+JWT_SECRET_KEY      = None
+GOOGLE_LOGIN_CLIENT_ID = None
+GOOGLE_LOGIN_CLIENT_SECRET = None
+
+BUILD_REF = {
+    "GRCh37": {
+        "fasta": "/data/ref/hs37d5.fa",
+        "nearest_gene_bed": "/data/ref/nearest-gene.GRCh37.bed"
+    },
+    "GRCh38": {
+        "fasta": "/data/ref/hs38DH.fa",
+        "nearest_gene_bed": "/data/ref/nearest-gene.GRCh38.bed"
+    }
+}
 
 def install_packages():
     packages = ['apache2',
@@ -37,6 +67,68 @@ def setup_encore():
     subprocess.call(shlex.split('cp -r /tmp/encore-encore-gcp/. /srv/encore/'))
     subprocess.call(shlex.split('rm -rf /tmp/encore.zip /tmp/encore-encore-gcp'))
 
+    #TODO configure flask_config.py
+    config = """
+SERVER_NAME = "{server_name}"
+
+JOB_DATA_FOLDER = "{job_data_folder}"
+PHENO_DATA_FOLDER = "{pheno_data_folder}"
+GENO_DATA_FOLDER = "{geno_data_folder}"
+EPACTS_BINARY = "{epacts_binary}"
+QUEUE_JOB_BINARY = "{queue_job_binary}"
+MANHATTAN_BINARY = "{manhattan_binary}"
+QQPLOT_BINARY = "{qqplot_binary}"
+TOPHITS_BINARY = "{tophits_binary}"
+NEAREST_GENE_BED = "{nearest_gene_bed}"
+
+VCF_FILE = "{vcf_file}"
+
+MYSQL_DB = "encore"
+MYSQL_USER = "{mysql_user}"
+MYSQL_PASSWORD = "{mysql_password}"
+
+BUILD_REF = {{
+    "GRCh37": {{
+        "fasta": "/data/ref/hs37d5.fa",
+        "nearest_gene_bed": "/data/ref/nearest-gene.GRCh37.bed"
+    }},
+    "GRCh38": {{
+        "fasta": "/data/ref/hs38DH.fa",
+        "nearest_gene_bed": "/data/ref/nearest-gene.GRCh38.bed"
+    }}
+}}
+
+
+SECRET_KEY = {secret_key}
+JWT_SECRET_KEY = {jwt_secret_key}
+
+GOOGLE_LOGIN_CLIENT_ID = {google_login_client_id}
+GOOGLE_LOGIN_CLIENT_SECRET = {google_login_client_secret}
+
+HELP_EMAIL = "{help_email}"
+""".format(server_name = SERVER_NAME,
+           job_data_folder = JOB_DATA_FOLDER,
+           pheno_data_folder = PHENO_DATA_FOLDER,
+           geno_data_folder = GENO_DATA_FOLDER,
+           epacts_binary = EPACTS_BINARY,
+           queue_job_binary = QUEUE_JOB_BINARY,
+           manhattan_binary = MANHATTAN_BINARY,
+           qqplot_binary = QQPLOT_BINARY,
+           tophits_binary = TOPHITS_BINARY,
+           nearest_gene_bed = NEAREST_GENE_BED,
+           vcf_file = VCF_FILE,
+           mysql_user = MYSQL_USER,
+           mysql_password = MYSQL_USER_PASS,
+           secret_key = SECRET_KEY,
+           jwt_secret_key = JWT_SECRET_KEY,
+           google_login_client_id = GOOGLE_LOGIN_CLIENT_ID,
+           google_login_client_secret = GOOGLE_LOGIN_CLIENT_SECRET,
+           help_email = HELP_EMAIL)
+
+    f = open('/srv/encore/flask_config.py', 'w')
+    f.write(config)
+    f.close()
+
 def install_python_requirements():
     subprocess.call(['pip3', 'install', '--upgrade', 'pip'])
     subprocess.call(['pip3', 'install', '-r', '/srv/encore/requirements.txt'])
@@ -58,6 +150,9 @@ def setup_mysql():
         "ALTER USER 'root'@'%s' IDENTIFIED WITH mysql_native_password BY '%s'" % (MYSQL_SERVER, MYSQL_ROOT_PASS)])
 
 def setup_apache():
+    subprocess.call(['sudo', 'a2enmod', 'wsgi'])
+    subprocess.call(['sudo', 'a2enmod', 'ssl'])
+
     conf = """
 <VirtualHost *:80>
     ServerAdmin webmaster@{encore_url}
@@ -115,15 +210,15 @@ from encore import create_app
 application = create_app(os.path.join('{encore_path}', "flask_config.py"))
 """.format(encore_path = ENCORE_PATH)
 
-    f = open(ENCORE_PATH + '/flask_config.py', 'w')
+    f = open(ENCORE_PATH + '/encore.wsgi', 'w')
     f.write(wsgi)
     f.close()
 
 def main():
-    #install_packages()
-    #setup_encore()
-    #install_python_requirements()
-    #setup_mysql()
+    install_packages()
+    setup_encore()
+    install_python_requirements()
+    setup_mysql()
     setup_apache()
 
 
