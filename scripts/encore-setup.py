@@ -1,34 +1,33 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import os
 import shlex
 import subprocess
+import requests
 
 # DB config
-MYSQL_USER          = 'flask-user'
-MYSQL_USER_PASS     = 'flask-user-pass'
-MYSQL_ROOT_PASS     = 'test-pass'
-MYSQL_SERVER        = 'localhost'
+MYSQL_USER = 'flask-user'
+MYSQL_USER_PASS = 'flask-user-pass'
+MYSQL_ROOT_PASS = 'test-pass'
+MYSQL_SERVER = 'localhost'
 
 # Apache config
-ENCORE_URL          = 'localhost'
-ENCORE_PATH         = '/srv/encore'
+ENCORE_PATH = '/srv/encore'
 
 # Flask config
-SERVER_NAME         = "localhost:5000"
-JOB_DATA_FOLDER     = "./"
-PHENO_DATA_FOLDER   = "./"
-GENO_DATA_FOLDER    = "./"
-EPACTS_BINARY       = 'epacts'
-QUEUE_JOB_BINARY    = 'sbatch'
-MANHATTAN_BINARY    = 'make_manhattan_json.py'
-QQPLOT_BINARY       = 'make_qq_json.py'
-TOPHITS_BINARY      = 'make_tophits_json.py'
-NEAREST_GENE_BED    = 'data/nearest-gene.bed'
-VCF_FILE            = ""
-HELP_EMAIL          = ""
-SECRET_KEY          = None
-JWT_SECRET_KEY      = None
+JOB_DATA_FOLDER = "./"
+PHENO_DATA_FOLDER = "./"
+GENO_DATA_FOLDER = "./"
+EPACTS_BINARY = 'epacts'
+QUEUE_JOB_BINARY = 'sbatch'
+MANHATTAN_BINARY = 'make_manhattan_json.py'
+QQPLOT_BINARY = 'make_qq_json.py'
+TOPHITS_BINARY = 'make_tophits_json.py'
+NEAREST_GENE_BED = 'data/nearest-gene.bed'
+VCF_FILE = ""
+HELP_EMAIL = ""
+SECRET_KEY = None
+JWT_SECRET_KEY = None
 GOOGLE_LOGIN_CLIENT_ID = None
 GOOGLE_LOGIN_CLIENT_SECRET = None
 
@@ -42,6 +41,12 @@ BUILD_REF = {
         "nearest_gene_bed": "/data/ref/nearest-gene.GRCh38.bed"
     }
 }
+
+def get_external_ip():
+    url = 'http://metadata/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip'
+    headers = {'Metadata-Flavor': 'Google'}
+    request = requests.get(url, headers=headers)
+    return request.text
 
 def install_packages():
     packages = ['apache2',
@@ -61,15 +66,17 @@ def install_packages():
     subprocess.call(['sudo', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y'] + packages)
 
 def setup_encore():
-    subprocess.call(shlex.split('mkdir -p /srv/encore'))
-    subprocess.call(shlex.split('curl -L https://github.com/statgen/encore/archive/encore-gcp.zip --output /tmp/encore.zip'))
-    subprocess.call(shlex.split('unzip /tmp/encore.zip -d /tmp/'))
-    subprocess.call(shlex.split('cp -r /tmp/encore-encore-gcp/. /srv/encore/'))
-    subprocess.call(shlex.split('rm -rf /tmp/encore.zip /tmp/encore-encore-gcp'))
+    if not os.path.exists('/srv/encore'):
+        subprocess.call(shlex.split('mkdir -p /srv/encore'))
+        subprocess.call(shlex.split('curl -L https://github.com/statgen/encore/archive/encore-gcp.zip --output /tmp/encore.zip'))
+        subprocess.call(shlex.split('unzip /tmp/encore.zip -d /tmp/'))
+        subprocess.call(shlex.split('cp -r /tmp/encore-encore-gcp/. /srv/encore/'))
+        subprocess.call(shlex.split('rm -rf /tmp/encore.zip /tmp/encore-encore-gcp'))
 
-    #TODO configure flask_config.py
-    config = """
-SERVER_NAME = "{server_name}"
+        server_name = get_external_ip()
+
+        config = """
+SERVER_NAME = "{server_name}:5000"
 
 JOB_DATA_FOLDER = "{job_data_folder}"
 PHENO_DATA_FOLDER = "{pheno_data_folder}"
@@ -106,28 +113,28 @@ GOOGLE_LOGIN_CLIENT_ID = {google_login_client_id}
 GOOGLE_LOGIN_CLIENT_SECRET = {google_login_client_secret}
 
 HELP_EMAIL = "{help_email}"
-""".format(server_name = SERVER_NAME,
-           job_data_folder = JOB_DATA_FOLDER,
-           pheno_data_folder = PHENO_DATA_FOLDER,
-           geno_data_folder = GENO_DATA_FOLDER,
-           epacts_binary = EPACTS_BINARY,
-           queue_job_binary = QUEUE_JOB_BINARY,
-           manhattan_binary = MANHATTAN_BINARY,
-           qqplot_binary = QQPLOT_BINARY,
-           tophits_binary = TOPHITS_BINARY,
-           nearest_gene_bed = NEAREST_GENE_BED,
-           vcf_file = VCF_FILE,
-           mysql_user = MYSQL_USER,
-           mysql_password = MYSQL_USER_PASS,
-           secret_key = SECRET_KEY,
-           jwt_secret_key = JWT_SECRET_KEY,
-           google_login_client_id = GOOGLE_LOGIN_CLIENT_ID,
-           google_login_client_secret = GOOGLE_LOGIN_CLIENT_SECRET,
-           help_email = HELP_EMAIL)
+""".format(server_name=server_name,
+           job_data_folder=JOB_DATA_FOLDER,
+           pheno_data_folder=PHENO_DATA_FOLDER,
+           geno_data_folder=GENO_DATA_FOLDER,
+           epacts_binary=EPACTS_BINARY,
+           queue_job_binary=QUEUE_JOB_BINARY,
+           manhattan_binary=MANHATTAN_BINARY,
+           qqplot_binary=QQPLOT_BINARY,
+           tophits_binary=TOPHITS_BINARY,
+           nearest_gene_bed=NEAREST_GENE_BED,
+           vcf_file=VCF_FILE,
+           mysql_user=MYSQL_USER,
+           mysql_password=MYSQL_USER_PASS,
+           secret_key=SECRET_KEY,
+           jwt_secret_key=JWT_SECRET_KEY,
+           google_login_client_id=GOOGLE_LOGIN_CLIENT_ID,
+           google_login_client_secret=GOOGLE_LOGIN_CLIENT_SECRET,
+           help_email=HELP_EMAIL)
 
-    f = open('/srv/encore/flask_config.py', 'w')
-    f.write(config)
-    f.close()
+        f = open('/srv/encore/flask_config.py', 'w')
+        f.write(config)
+        f.close()
 
 def install_python_requirements():
     subprocess.call(['pip3', 'install', '--upgrade', 'pip'])
@@ -139,7 +146,7 @@ def setup_mysql():
     subprocess.call(['usermod', '-d', '/var/lib/mysql/', 'mysql'])
     subprocess.call(shlex.split('sudo service mysql start'))
     subprocess.call(['mysql', '-u', 'root', '-e',
-        "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER,MYSQL_USER_PASS)])
+        "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER, MYSQL_USER_PASS)])
     subprocess.call(['mysql', '-u', 'root', '-e',
         "GRANT DELETE, INSERT, SELECT, UPDATE, EXECUTE ON encore.* TO '%s'@'%s'" % (MYSQL_USER, MYSQL_SERVER)])
     subprocess.call(['mysql', '-u', 'root', '-e',
@@ -193,7 +200,7 @@ def setup_apache():
         Require all granted
     </Files>
 </VirtualHost>
-""".format(encore_url = ENCORE_URL, encore_path = ENCORE_PATH)
+""".format(encore_url=get_external_ip(), encore_path=ENCORE_PATH)
 
     if not os.path.exists('/etc/apache2/sites-enabled'):
         os.makedirs('/etc/apache2/sites-enabled')
@@ -208,11 +215,13 @@ sys.path.insert(0, '{encore_path}')
 
 from encore import create_app
 application = create_app(os.path.join('{encore_path}', "flask_config.py"))
-""".format(encore_path = ENCORE_PATH)
+""".format(encore_path=ENCORE_PATH)
 
     f = open(ENCORE_PATH + '/encore.wsgi', 'w')
     f.write(wsgi)
     f.close()
+
+    #TODO restart apache, create self signed ssl cert
 
 def main():
     install_packages()
@@ -223,4 +232,5 @@ def main():
 
 
 if __name__ == '__main__':
+    #TODO create venv for app, see if I can auto assign an IP if once isn't given
     main()
