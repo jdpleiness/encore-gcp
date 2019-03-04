@@ -58,7 +58,7 @@ def install_packages():
     packages = ['apache2',
                 'curl',
                 'git',
-                'libapache2-mod-wsgi',
+                'libapache2-mod-wsgi-py3',
                 'libmysqlclient-dev',
                 'libffi-dev',
                 'libssl-dev',
@@ -82,7 +82,7 @@ def setup_encore():
         server_name = get_external_ip()
 
         config = """
-SERVER_NAME = "{server_name}:5000"
+SERVER_NAME = "{server_name}"
 
 JOB_DATA_FOLDER = "{job_data_folder}"
 PHENO_DATA_FOLDER = "{pheno_data_folder}"
@@ -142,7 +142,7 @@ HELP_EMAIL = "{help_email}"
         f.write(config)
         f.close()
 
-        install_python_requirements()
+    install_python_requirements()
 
 def install_python_requirements():
     subprocess.call(['pip3', 'install', '--upgrade', 'pip'])
@@ -169,8 +169,7 @@ def setup_apache():
     subprocess.call(['sudo', 'a2enmod', 'wsgi'])
     subprocess.call(['sudo', 'a2enmod', 'ssl'])
 
-    conf = """
-<VirtualHost *:80>
+    conf = """<VirtualHost *:80>
     ServerAdmin webmaster@{encore_url}
     ServerName {encore_url}
     Redirect permanent / https://{encore_url}/
@@ -187,10 +186,10 @@ def setup_apache():
 
     SSLEngine on
 
-    SSLCertificateFile    /etc/ssl/certs/{encore_url}.cert
+    SSLCertificateFile    /etc/ssl/certs/{encore_url}.crt
     SSLCertificateKeyFile /etc/ssl/private/{encore_url}.key
 
-    WSGIDaemonProcess {encore_url} processes=1 threads=1 user=encore group=encore home={encore_path}
+    WSGIDaemonProcess {encore_url} processes=1 threads=1 home={encore_path}
     WSGIProcessGroup {encore_url}
     WSGIScriptAlias / {encore_path}/encore.wsgi
 	WSGIPassAuthorization On
@@ -211,13 +210,13 @@ def setup_apache():
 </VirtualHost>
 """.format(encore_url=get_external_ip(), encore_path=ENCORE_PATH)
 
-    if not os.path.exists('/etc/apache2/sites-enabled'):
-        os.makedirs('/etc/apache2/sites-enabled')
-    f = open('/etc/apache2/sites-enabled/encore.conf', 'w')
+    if not os.path.exists('/etc/apache2/sites-available'):
+        os.makedirs('/etc/apache2/sites-available')
+    f = open('/etc/apache2/sites-available/encore.conf', 'w')
     f.write(conf)
     f.close()
 
-    wsgi = """
+    wsgi = """#!/usr/bin/python3
 import os, sys
 
 sys.path.insert(0, '{encore_path}')
@@ -230,7 +229,13 @@ application = create_app(os.path.join('{encore_path}', "flask_config.py"))
     f.write(wsgi)
     f.close()
 
-    #TODO create self signed ssl cert
+    if not os.path.exists('/etc/ssl/certs/%s.crt' % (get_external_ip())):
+        subprocess.call(["sudo", "openssl", "req", "-x509", "-nodes", "-days",
+            "365", "-newkey", "rsa:2048", "-keyout", "/etc/ssl/private/%s.key" % get_external_ip(),
+            "-out", "/etc/ssl/certs/%s.crt" % get_external_ip(), "-subj", "/C=US/ST=MI/L=A2/O=UM/CN=%s"
+            % get_external_ip()])
+
+    subprocess.call(shlex.split('sudo a2ensite encore'))
     subprocess.call(shlex.split('sudo service apache2 restart'))
 
 def main():
