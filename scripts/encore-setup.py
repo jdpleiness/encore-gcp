@@ -48,6 +48,12 @@ def get_external_ip():
     request = requests.get(url, headers=headers)
     return request.text
 
+def get_hostname():
+    url = 'http://metadata.google.internal/computeMetadata/v1/instance/hostname'
+    headers = {'Metadata-Flavor': 'Google'}
+    request = requests.get(url, headers=headers)
+    return request.text.split('.', 1)[0]
+
 def install_packages():
     packages = ['apache2',
                 'curl',
@@ -136,25 +142,28 @@ HELP_EMAIL = "{help_email}"
         f.write(config)
         f.close()
 
+        install_python_requirements()
+
 def install_python_requirements():
     subprocess.call(['pip3', 'install', '--upgrade', 'pip'])
     subprocess.call(['pip3', 'install', '-r', '/srv/encore/requirements.txt'])
 
 def setup_mysql():
-    subprocess.call(['mkdir', '-p', '/var/lib/mysqld'])
-    subprocess.call(['chown', '-R', 'mysql:mysql', '/var/lib/mysqld'])
-    subprocess.call(['usermod', '-d', '/var/lib/mysql/', 'mysql'])
-    subprocess.call(shlex.split('sudo service mysql start'))
-    subprocess.call(['mysql', '-u', 'root', '-e',
-        "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER, MYSQL_USER_PASS)])
-    subprocess.call(['mysql', '-u', 'root', '-e',
-        "GRANT DELETE, INSERT, SELECT, UPDATE, EXECUTE ON encore.* TO '%s'@'%s'" % (MYSQL_USER, MYSQL_SERVER)])
-    subprocess.call(['mysql', '-u', 'root', '-e',
-        "DELETE FROM mysql.user WHERE User=''"])
-    subprocess.call(['mysql', '-u', 'root', '-e',
-        "FLUSH PRIVILEGES"])
-    subprocess.call(['mysql', '-u', 'root', '-e',
-        "ALTER USER 'root'@'%s' IDENTIFIED WITH mysql_native_password BY '%s'" % (MYSQL_SERVER, MYSQL_ROOT_PASS)])
+    if not os.path.exists('/var/lib/mysqld'):
+        subprocess.call(['mkdir', '-p', '/var/lib/mysqld'])
+        subprocess.call(['chown', '-R', 'mysql:mysql', '/var/lib/mysqld'])
+        subprocess.call(['usermod', '-d', '/var/lib/mysql/', 'mysql'])
+        subprocess.call(shlex.split('sudo service mysql start'))
+        subprocess.call(['mysql', '-u', 'root', '-e',
+            "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER, MYSQL_USER_PASS)])
+        subprocess.call(['mysql', '-u', 'root', '-e',
+            "GRANT DELETE, INSERT, SELECT, UPDATE, EXECUTE ON encore.* TO '%s'@'%s'" % (MYSQL_USER, MYSQL_SERVER)])
+        subprocess.call(['mysql', '-u', 'root', '-e',
+            "DELETE FROM mysql.user WHERE User=''"])
+        subprocess.call(['mysql', '-u', 'root', '-e',
+            "FLUSH PRIVILEGES"])
+        subprocess.call(['mysql', '-u', 'root', '-e',
+            "ALTER USER 'root'@'%s' IDENTIFIED WITH mysql_native_password BY '%s'" % (MYSQL_SERVER, MYSQL_ROOT_PASS)])
 
 def setup_apache():
     subprocess.call(['sudo', 'a2enmod', 'wsgi'])
@@ -221,16 +230,15 @@ application = create_app(os.path.join('{encore_path}', "flask_config.py"))
     f.write(wsgi)
     f.close()
 
-    #TODO restart apache, create self signed ssl cert
+    #TODO create self signed ssl cert
+    subprocess.call(shlex.split('sudo service apache2 restart'))
 
 def main():
     install_packages()
     setup_encore()
-    install_python_requirements()
     setup_mysql()
     setup_apache()
 
 
 if __name__ == '__main__':
-    #TODO create venv for app, see if I can auto assign an IP if once isn't given
     main()
