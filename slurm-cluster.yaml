@@ -31,6 +31,31 @@ resources:
     region                  : us-central1
     cidr                    : 10.10.0.0/16
 
+    # ENCORE configuration fields
+    google_login_client_id      : None
+    google_login_client_secret  : None
+    jwt_secret_key              : None
+    secret_key                  : None
+
+    mysql_root_pass             : test-root-pass
+    mysql_server                : localhost
+    mysql_user                  : flask_user
+    mysql_user_pass             : flask_user_pass
+
+    # Optional ENCORE configuration fields
+    # encore_path         : < Path to encore install >
+    # epacts_binary       : < Binary for EPACTS >
+    # geno_data_folder    : < Path to geno data >
+    # help_email          : < Point of contact for help >
+    # job_data_folder     : < Path to job data folder >
+    # manhattan_binary    : < Binary for manhattan plotting >
+    # nearest_gene_bed    : < Path to nearest gene bed folder >
+    # pheno_data_folder   : < Path to phenotype data >
+    # qqplot_binary       : < Binary to create qqplot >
+    # queue_job_binary    : < Binary used to queue jobs >
+    # tophits_binary      : < Binary used to generate tophits >
+    # vcf_file            : < Path to VCF file >
+
     # Optional network configuration fields
     # READ slurm.jinja.schema for prerequisites
     #vpc_net                 : < my-vpc >

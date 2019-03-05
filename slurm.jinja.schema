@@ -16,10 +16,10 @@
 # limitations under the License.
 
 info:
-  title: A template for creating a Slurm cluster.
-  author: SchedMD LLC
+  title: A template for creating a Slurm cluster and an ENCORE frontend.
+  author: SchedMD LLC/Umich
   description: |
-    Create a Slurm cluster in GCP.
+    Create a Slurm cluster in GCP with an ENCORE frontend.
 
 imports:
 - path: scripts/resume.py
@@ -33,37 +33,58 @@ required:
 - controller_machine_type
 - default_account
 - default_users
+- google_login_client_id
+- google_login_client_secret
+- jwt_secret_key
 - login_machine_type
 - max_node_count
+- mysql_root_pass
+- mysql_server
+- mysql_user
+- mysql_user_pass
 - private_google_access
 - region
+- secret_key
 - slurm_version
 - static_node_count
 - zone
 
 optional:
-- compute_disk_type
 - compute_disk_size_gb
-- controller_disk_type
+- compute_disk_type
 - controller_disk_size_gb
+- controller_disk_type
 - controller_secondary_disk
-- controller_secondary_disk_type
 - controller_secondary_disk_size_gb
+- controller_secondary_disk_type
 - cpu_platform
+- encore_path
+- epacts_binary
 - external_compute_ips
+- geno_data_folder
 - gpu_count
 - gpu_type
+- help_email
+- job_data_folder
 - labels
 - login_disk_size_gb
 - login_disk_type
 - login_node_count
+- manhattan_binary
 - munge_key
+- nearest_gene_bed
 - nfs_apps_server
 - nfs_home_server
+- pheno_data_folder
 - preemptible_bursting
+- qqplot_binary
+- queue_job_binary
 - shared_vpc_host_proj
+- tophits_binary
+- vcf_file
 - vpc_net
 - vpc_subnet
+
 
 properties:
   cidr:
@@ -144,12 +165,27 @@ properties:
     description : Default users to add to accounting. Added to default_account.
                   Users can be added later using sacctmgr.
 
+  encore_path:
+    type        : string
+    default     : "/srv/encore"
+    description : Path to ENCORE installation.
+
+  epacts_binary:
+    type        : string
+    default     : epacts
+    description : Name of binary for EPACTS.
+
   external_compute_ips:
     type        : boolean
     default     : True
     description : Whether compute nodes are assigned external IPs or not. If set
                   to false, then the compute nodes will get to the internet
                   through a Cloud NAT gateway.
+
+  geno_data_folder:
+    type        : string
+    default     : "./"
+    description : path to GENO data folder.
 
   gpu_type:
     enum        :
@@ -159,10 +195,34 @@ properties:
                 - nvidia-tesla-p4
     description : GPU Type to attach to static nodes.
 
+  google_login_client_id:
+    type        : string
+    default     : None
+    description : Login client ID for Google Auth API
+
+  google_login_client_secret:
+    type        : string
+    default     : None
+    description : Login secret for Google Auth API
+
   gpu_count:
     enum        : [0, 1, 2, 4, 8]
     default     : 0
     description : Number of GPUs to attach to each node.
+
+  help_email:
+    type        : string
+    default     : ""
+    description : Administrator or point of contact for support.
+
+  job_data_folder:
+    type        : string
+    default     : "./"
+    description : Path to folder containing job data.
+
+  jwt_secret_key:
+    type        : string
+    default     : None
 
   labels:
     type        : string
@@ -192,6 +252,11 @@ properties:
     default     : 0
     description : Number of login nodes in the cluster.
 
+  manhattan_binary:
+    type        : string
+    default     : make_manhattan_json.py
+    description : Binary to call to make manhattan plot.
+
   max_node_count:
     type        : integer
     description : Maximum number of instances that the cluster can grow to.
@@ -202,6 +267,28 @@ properties:
                   (e.g "date +%s | sha512sum | cut -d' ' -f1"). If not specified
                   then a random key will be generated at deployment creation.
 
+  mysql_root_pass:
+    type        : string
+    description : Root password for MYSQL server install.
+
+  mysql_server:
+    type        : string
+    default     : localhost
+    description : DNS/IP address of MYSQL server.
+
+  mysql_user:
+    type        : string
+    description : Username for MYSQL server install.
+
+  mysql_user_pass:
+    type        : string
+    description : Password for MYSQL user.
+
+  nearest_gene_bed:
+    type        : string
+    default     : "data/nearest-gene.bed"
+    description : Path to the nearest gene bed.
+
   nfs_apps_server:
     type        : string
     description : IP address of NFS server hosting apps dir
@@ -209,6 +296,11 @@ properties:
   nfs_home_server:
     type        : string
     description : IP address of NFS server hosting home dir
+
+  pheno_data_folder:
+    type        : string
+    default     : "./"
+    description : Path to the Phenotype data folder
 
   preemptible_bursting:
     type        : boolean
@@ -222,9 +314,24 @@ properties:
     default     : True
     description : Private Google Access is Enabled (True/False).
 
+  qqplot_binary:
+    type        : string
+    default     : make_qq_json.py
+    description : Binary called to make qqplot.
+
+  queue_job_binary:
+    type        : string
+    default     : sbatch
+    description : Binary called to queue job (in this case into slurm).
+
   region:
     type        : string
     description : Region to run the instances in.
+
+  secret_key:
+    type        : string
+    default     : None
+    description : Flask secret key.
 
   shared_vpc_host_project:
     type        : string
@@ -242,6 +349,16 @@ properties:
   static_node_count:
     type        : integer
     description : Number of initial instances in the cluster.
+
+  tophits_binary:
+    type        : string
+    default     : make_tophits_json.py
+    description : Binary called to make tophits plot.
+
+  vcf_file:
+    type        : string
+    default     : ""
+    description : Path to VCF file.
 
   vpc_net:
     type        : string
