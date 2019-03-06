@@ -81,8 +81,7 @@ def setup_encore():
 
         server_name = get_external_ip()
 
-        config = """
-SERVER_NAME = "{server_name}"
+        config = """SERVER_NAME = "{server_name}"
 
 JOB_DATA_FOLDER = "{job_data_folder}"
 PHENO_DATA_FOLDER = "{pheno_data_folder}"
