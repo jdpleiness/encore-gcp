@@ -48,6 +48,15 @@ resources:
     - IPProtocol: UDP
       ports: ["0-65535"]
     - IPProtocol: ICMP
+- name: {{properties["cluster_name"]}}-web-traffic-firewall-rule
+  type: compute.v1.firewall
+  properties:
+    network: $(ref.{{properties["cluster_name"]}}-slurm-network.selfLink)
+    sourceRanges: ["0.0.0.0/0"]
+    allowed:
+    - IPProtocol: TCP
+      ports: ["80","443"]
+    - IPProtocol: ICMP
 {% endif %}
 
 {% if (not properties['external_compute_ips'] and not properties['shared_vpc_host_proj']) %}
@@ -186,7 +195,7 @@ resources:
       items:
         - key: startup-script
           value: |
-            {{ imports["scripts/startup-script.py"]|indent(12)|replace("@PROJECT@",env["project"])|replace("@ZONE@",properties["zone"])|replace("@INSTANCE_TYPE@","controller")|replace("@MUNGE_KEY@",properties["munge_key"])|replace("@SLURM_VERSION@",properties["slurm_version"])|replace("@STATIC_NODE_COUNT@",properties["static_node_count"])|replace("@MAX_NODE_COUNT@",properties["max_node_count"])|replace("@MACHINE_TYPE@",properties["compute_machine_type"])|replace("@DEF_SLURM_ACCT@",properties["default_account"])|replace("@DEF_SLURM_USERS@",properties["default_users"])|replace("@CLUSTER_NAME@",properties["cluster_name"])|replace("@EXTERNAL_COMPUTE_IPS@",properties["external_compute_ips"])|replace("@NFS_HOME_SERVER@",properties["nfs_home_server"])|replace("@NFS_APPS_SERVER@",properties["nfs_apps_server"])|replace("@GPU_TYPE@",properties["gpu_type"])|replace("@GPU_COUNT@",properties["gpu_count"])|replace("@CONTROLLER_SECONDARY_DISK@",properties["controller_secondary_disk"]) }}
+            {{ imports["scripts/encore-setup.py"]|indent(12)|replace("@MYSQL_USER@",properties["mysql_user"])|replace("@MYSQL_USER_PASS@",properties["mysql_user_pass"])|replace("@MYSQL_ROOT_PASSS@",properties["myswl_root_pass"])|replace("@MYSQL_SERVER@",properties["mysql_server"])|replace("@ENCORE_PATH@", properties["encore_path"])|replace("@JOB_DATA_FOLDER@", properties["job_data_folder"])|replace("@PHENO_DATA_FOLDER@", properties["pheno_data_folder"])|replace("@GENO_DATA_FOLDER@", properties["geno_data_folder"])|replace("@EPACTS_BINARY@", properties["epacts_binary"])|replace("@QUEUE_JOB_BINARY@", properties["queue_job_binary"])|replace("@MANHATTAN_BINARY@", properties["manhattan_binary"])|replace("@QQPLOT_BINARY@", properties["qqplot_binary"])|replace("@TOPHITS_BINARY@", properties["tophits_binary"])|replace("@NEAREST_GENE_BED@", properties["nearest_gnene_bed"])|replace("@VCF_FILE@", properties["vcf_file"])|replace("@HELP_EMAIL@", properties["help_email"])|replace("@SECRET_KEY@", properties["secret_key"])|replace("@JWT_SECRET_KEY@", properties["jwt_secret_key"])|replace("@GOOGLE_LOGIN_CLIENT_ID@", properties["google_login_client_id"])|replace("@GOOGLE_LOGIN_CLIENT_SECRET@", properties["google_login_client_secret"]) }}
         - key: enable-oslogin
           value: "TRUE"
 
