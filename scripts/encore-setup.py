@@ -3,7 +3,25 @@
 import os
 import shlex
 import subprocess
+import time
+
 import requests
+
+CLUSTER_NAME      = '@CLUSTER_NAME@'
+MACHINE_TYPE      = '@MACHINE_TYPE@' # e.g. n1-standard-1, n1-starndard-2
+INSTANCE_TYPE     = '@INSTANCE_TYPE@' # e.g. controller, login, compute
+
+PROJECT           = '@PROJECT@'
+ZONE              = '@ZONE@'
+
+APPS_DIR          = "/apps"
+MUNGE_DIR         = "/etc/munge"
+MUNGE_KEY         = '@MUNGE_KEY@'
+SLURM_VERSION     = '@SLURM_VERSION@'
+
+CONTROL_MACHINE = CLUSTER_NAME + '-controller'
+
+SLURM_PREFIX  = APPS_DIR + '/slurm/slurm-' + SLURM_VERSION
 
 # DB config
 MYSQL_USER = '@MYSQL_USER@'
@@ -64,6 +82,8 @@ def install_packages():
                 'libssl-dev',
                 'mysql-client',
                 'mysql-server',
+                'munge',
+                'nfs-common',
                 'python3-pip',
                 'python3-setuptools',
                 'unzip']
@@ -153,6 +173,7 @@ def setup_mysql():
         subprocess.call(['chown', '-R', 'mysql:mysql', '/var/lib/mysqld'])
         subprocess.call(['usermod', '-d', '/var/lib/mysql/', 'mysql'])
         subprocess.call(shlex.split('sudo service mysql start'))
+        subprocess.call(['mysql', '-u', 'root', '<', '/srv/encore/schema.sql'], shell=True)
         subprocess.call(['mysql', '-u', 'root', '-e',
             "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER, MYSQL_USER_PASS)])
         subprocess.call(['mysql', '-u', 'root', '-e',
@@ -237,11 +258,91 @@ application = create_app(os.path.join('{encore_path}', "flask_config.py"))
     subprocess.call(shlex.split('sudo a2ensite encore'))
     subprocess.call(shlex.split('sudo service apache2 restart'))
 
+def add_slurm_user():
+    SLURM_UID = str(992)
+    subprocess.call(['groupadd', '-g', SLURM_UID, 'slurm'])
+    subprocess.call(['useradd', '-m', '-c', 'Slurm Workload Manager',
+        '-d', '/var/lib/slurm', '-u', SLURM_UID, '-g', 'slurm',
+        '-s', '/bin/bash', 'slurm'])
+
+def setup_munge():
+    f = open('/etc/fstab', 'a')
+    f.write("""
+{1}:{0}    {0}     nfs      rw,sync,hard,intr  0     0
+""".format(MUNGE_DIR, CONTROL_MACHINE))
+    f.close()
+
+    munge_over_path = "/etc/systemd/system/munge.service.d"
+    if not os.path.exists(munge_over_path):
+            os.makedirs(munge_over_path)
+    f = open(munge_over_path + "/override.conf", 'w')
+    f.write("[Unit]\nRequiresMountsFor={}\n".format(MUNGE_DIR))
+    f.close()
+
+    if MUNGE_KEY:
+        f = open(MUNGE_DIR +'/munge.key', 'w')
+        f.write(MUNGE_KEY)
+        f.close()
+
+        subprocess.call(['chown', '-R', 'munge:', MUNGE_DIR, '/var/log/munge/'])
+        os.chmod(MUNGE_DIR + '/munge.key' ,0o400)
+        os.chmod(MUNGE_DIR                ,0o700)
+        os.chmod('/var/log/munge/'        ,0o700)
+    else:
+        subprocess.call(['create-munge-key'])
+
+def start_munge():
+    subprocess.call(['systemctl', 'enable', 'munge'])
+    subprocess.call(['systemctl', 'start', 'munge'])
+
+def setup_bash_profile():
+    f = open('/etc/profile.d/slurm.sh', 'w')
+    f.write("""
+S_PATH=%s/slurm/current
+PATH=$PATH:$S_PATH/bin:$S_PATH/sbin
+""" % APPS_DIR)
+    f.close()
+
+def setup_nfs_apps_vols():
+    f = open('/etc/fstab', 'a')
+    f.write("""
+{1}:{0}    {0}     nfs      rw,sync,hard,intr  0     0
+""".format(APPS_DIR, CONTROL_MACHINE))
+
+def setup_nfs_home_vols():
+    f = open('/etc/fstab', 'a')
+    f.write("""
+{0}:/home    /home     nfs      rw,sync,hard,intr  0     0
+""".format(CONTROL_MACHINE))
+
+def mount_nfs_vols():
+    while subprocess.call(['mount', '-a']):
+        print("Waiting for " + APPS_DIR + " and /home to be mounted")
+        time.sleep(5)
+
 def main():
+    if not os.path.exists(APPS_DIR + '/slurm'):
+        os.makedirs(APPS_DIR + '/slurm')
+
+    if not os.path.exists('/var/log/slurm'):
+        os.makedirs('/var/log/slurm')
+
     install_packages()
     setup_encore()
     setup_mysql()
     setup_apache()
+
+    # Setup Slurm
+    add_slurm_user()
+    setup_munge()
+    setup_bash_profile()
+    setup_nfs_apps_vols()
+    setup_nfs_home_vols()
+    mount_nfs_vols()
+
+    start_munge()
+
+    #TODO load schema into db
 
 
 if __name__ == '__main__':
