@@ -15,13 +15,13 @@ PROJECT           = '@PROJECT@'
 ZONE              = '@ZONE@'
 
 APPS_DIR          = "/apps"
+CURR_SLURM_DIR    = APPS_DIR + '/slurm/current'
 MUNGE_DIR         = "/etc/munge"
 MUNGE_KEY         = '@MUNGE_KEY@'
 SLURM_VERSION     = '@SLURM_VERSION@'
+DEF_PART_NAME     = "debug"
 
 CONTROL_MACHINE = CLUSTER_NAME + '-controller'
-
-SLURM_PREFIX  = APPS_DIR + '/slurm/slurm-' + SLURM_VERSION
 
 # DB config
 MYSQL_USER = '@MYSQL_USER@'
@@ -60,17 +60,20 @@ BUILD_REF = {
     }
 }
 
+
 def get_external_ip():
     url = 'http://metadata/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip'
     headers = {'Metadata-Flavor': 'Google'}
     request = requests.get(url, headers=headers)
     return request.text
 
+
 def get_hostname():
     url = 'http://metadata.google.internal/computeMetadata/v1/instance/hostname'
     headers = {'Metadata-Flavor': 'Google'}
     request = requests.get(url, headers=headers)
     return request.text.split('.', 1)[0]
+
 
 def install_packages():
     packages = ['apache2',
@@ -90,6 +93,11 @@ def install_packages():
 
     subprocess.call(['sudo', 'apt-get', 'update'])
     subprocess.call(['sudo', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y'] + packages)
+
+    # Install libreadline6 because 18.04 only includes 5 and 7 and slurm bins need it
+    subprocess.call(shlex.split('curl -L http://mirrors.kernel.org/ubuntu/pool/main/r/readline6/libreadline6_6.3-8ubuntu2_amd64.deb --output /tmp/libreadline6_6.3-8ubuntu2_amd64.deb'))
+    subprocess.call(shlex.split('dpkg -i /tmp/libreadline6_6.3-8ubuntu2_amd64.deb'))
+
 
 def setup_encore():
     if not os.path.exists('/srv/encore'):
@@ -163,9 +171,11 @@ HELP_EMAIL = "{help_email}"
 
     install_python_requirements()
 
+
 def install_python_requirements():
     subprocess.call(['pip3', 'install', '--upgrade', 'pip'])
     subprocess.call(['pip3', 'install', '-r', '/srv/encore/requirements.txt'])
+
 
 def setup_mysql():
     if not os.path.exists('/var/lib/mysqld'):
@@ -184,6 +194,7 @@ def setup_mysql():
             "FLUSH PRIVILEGES"])
         subprocess.call(['mysql', '-u', 'root', '-e',
             "ALTER USER 'root'@'%s' IDENTIFIED WITH mysql_native_password BY '%s'" % (MYSQL_SERVER, MYSQL_ROOT_PASS)])
+
 
 def setup_apache():
     subprocess.call(['sudo', 'a2enmod', 'wsgi'])
@@ -258,32 +269,60 @@ application = create_app(os.path.join('{encore_path}', "flask_config.py"))
     subprocess.call(shlex.split('sudo a2ensite encore'))
     subprocess.call(shlex.split('sudo service apache2 restart'))
 
+
 def add_slurm_user():
     SLURM_UID = str(992)
     subprocess.call(['groupadd', '-g', SLURM_UID, 'slurm'])
-    subprocess.call(['useradd', '-m', '-c', 'Slurm Workload Manager',
+    subprocess.call(['useradd', '-m', '-c', 'SLURM Workload Manager',
         '-d', '/var/lib/slurm', '-u', SLURM_UID, '-g', 'slurm',
         '-s', '/bin/bash', 'slurm'])
 
+
 def setup_munge():
-    f = open('/etc/fstab', 'a')
+
+    munge_service_patch = "/lib/systemd/system/munge.service"
+    f = open(munge_service_patch, 'w')
     f.write("""
-{1}:{0}    {0}     nfs      rw,sync,hard,intr  0     0
-""".format(MUNGE_DIR, CONTROL_MACHINE))
+[Unit]
+Description=MUNGE authentication service
+Documentation=man:munged(8)
+After=network.target
+After=syslog.target
+After=time-sync.target
+""")
+
+    if (INSTANCE_TYPE != "controller"):
+        f.write("RequiresMountsFor={}\n".format(MUNGE_DIR))
+
+    f.write("""
+[Service]
+Type=forking
+ExecStart=/usr/sbin/munged --num-threads=10
+PIDFile=/var/run/munge/munged.pid
+User=munge
+Group=munge
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target""")
     f.close()
 
-    munge_over_path = "/etc/systemd/system/munge.service.d"
-    if not os.path.exists(munge_over_path):
-            os.makedirs(munge_over_path)
-    f = open(munge_over_path + "/override.conf", 'w')
-    f.write("[Unit]\nRequiresMountsFor={}\n".format(MUNGE_DIR))
-    f.close()
+    subprocess.call(['systemctl', 'enable', 'munge'])
+
+    if (INSTANCE_TYPE != "controller"):
+        f = open('/etc/fstab', 'a')
+        f.write("""
+{1}:{0}    {0}     nfs      rw,hard,intr  0     0
+""".format(MUNGE_DIR, CONTROL_MACHINE))
+        f.close()
+        return
 
     if MUNGE_KEY:
         f = open(MUNGE_DIR +'/munge.key', 'w')
         f.write(MUNGE_KEY)
         f.close()
 
+        #TODO Fix permissions issue with munge dir
         subprocess.call(['chown', '-R', 'munge:', MUNGE_DIR, '/var/log/munge/'])
         os.chmod(MUNGE_DIR + '/munge.key' ,0o400)
         os.chmod(MUNGE_DIR                ,0o700)
@@ -291,17 +330,20 @@ def setup_munge():
     else:
         subprocess.call(['create-munge-key'])
 
+
 def start_munge():
-    subprocess.call(['systemctl', 'enable', 'munge'])
     subprocess.call(['systemctl', 'start', 'munge'])
 
+
 def setup_bash_profile():
+
     f = open('/etc/profile.d/slurm.sh', 'w')
     f.write("""
-S_PATH=%s/slurm/current
+S_PATH=%s
 PATH=$PATH:$S_PATH/bin:$S_PATH/sbin
-""" % APPS_DIR)
+""" % CURR_SLURM_DIR)
     f.close()
+
 
 def setup_nfs_apps_vols():
     f = open('/etc/fstab', 'a')
@@ -309,16 +351,19 @@ def setup_nfs_apps_vols():
 {1}:{0}    {0}     nfs      rw,sync,hard,intr  0     0
 """.format(APPS_DIR, CONTROL_MACHINE))
 
+
 def setup_nfs_home_vols():
     f = open('/etc/fstab', 'a')
     f.write("""
 {0}:/home    /home     nfs      rw,sync,hard,intr  0     0
 """.format(CONTROL_MACHINE))
 
+
 def mount_nfs_vols():
     while subprocess.call(['mount', '-a']):
         print("Waiting for " + APPS_DIR + " and /home to be mounted")
         time.sleep(5)
+
 
 def main():
     if not os.path.exists(APPS_DIR + '/slurm'):
@@ -341,6 +386,18 @@ def main():
     mount_nfs_vols()
 
     start_munge()
+
+    try:
+        subprocess.call("{}/slurm/scripts/custom-compute-install"
+                        .format(APPS_DIR))
+    except Exception:
+        # Ignore blank files with no shell magic.
+        pass
+
+    part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
+    while "State=UP" not in part_state:
+        part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
+
 
     #TODO load schema into db
 

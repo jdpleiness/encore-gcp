@@ -278,7 +278,7 @@ properties:
 
   login_node_count:
     type        : integer
-    default     : 1
+    default     : 0
     description : Number of login nodes in the cluster.
 
   manhattan_binary:
@@ -394,6 +394,7 @@ properties:
     type        : string
     default     : ""
     description : Path to VCF file.
+
   suspend_time:
     type        : integer
     default     : 300
