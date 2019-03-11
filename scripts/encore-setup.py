@@ -4,6 +4,7 @@ import os
 import shlex
 import subprocess
 import time
+from pwd import getpwnam
 
 import requests
 
@@ -322,8 +323,7 @@ WantedBy=multi-user.target""")
         f.write(MUNGE_KEY)
         f.close()
 
-        #TODO Fix permissions issue with munge dir
-        subprocess.call(['chown', '-R', 'munge:', MUNGE_DIR, '/var/log/munge/'])
+        subprocess.call(['chown', '-R', 'munge:munge', MUNGE_DIR, '/var/log/munge/'])
         os.chmod(MUNGE_DIR + '/munge.key' ,0o400)
         os.chmod(MUNGE_DIR                ,0o700)
         os.chmod('/var/log/munge/'        ,0o700)
@@ -332,7 +332,17 @@ WantedBy=multi-user.target""")
 
 
 def start_munge():
-    subprocess.call(['systemctl', 'start', 'munge'])
+    munge_uid = getpwnam('munge').pw_uid
+    munge_gid = getpwnam('munge').pw_gid
+
+    subprocess.call(shlex.split('systemctl stop munge'))
+
+    # Set munge UID and GID to match NFS mount for /etc/munge
+    subprocess.call(shlex.split('usermod -u 991 munge'))
+    subprocess.call(shlex.split('groupmod -g 991 munge'))
+    subprocess.call(['chown', '-R', 'munge:munge', MUNGE_DIR, '/var/log/munge/', '/var/lib/munge/', '/var/run/munge/'])
+
+    subprocess.call(['systemctl', 'restart', 'munge'])
 
 
 def setup_bash_profile():
@@ -387,15 +397,8 @@ def main():
 
     start_munge()
 
-    try:
-        subprocess.call("{}/slurm/scripts/custom-compute-install"
-                        .format(APPS_DIR))
-    except Exception:
-        # Ignore blank files with no shell magic.
-        pass
-
     part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
-    while "State=UP" not in part_state:
+    while "State=UP" not in str(part_state):
         part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
 
 
