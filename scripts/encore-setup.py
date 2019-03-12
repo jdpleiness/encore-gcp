@@ -61,6 +61,91 @@ BUILD_REF = {
     }
 }
 
+MOTD_HEADER = '''
+
+                                 SSSSSSS
+                                SSSSSSSSS
+                                SSSSSSSSS
+                                SSSSSSSSS
+                        SSSS     SSSSSSS     SSSS
+                       SSSSSS               SSSSSS
+                       SSSSSS    SSSSSSS    SSSSSS
+                        SSSS    SSSSSSSSS    SSSS
+                SSS             SSSSSSSSS             SSS
+               SSSSS    SSSS    SSSSSSSSS    SSSS    SSSSS
+                SSS    SSSSSS   SSSSSSSSS   SSSSSS    SSS
+                       SSSSSS    SSSSSSS    SSSSSS
+                SSS    SSSSSS               SSSSSS    SSS
+               SSSSS    SSSS     SSSSSSS     SSSS    SSSSS
+          S     SSS             SSSSSSSSS             SSS     S
+         SSS            SSSS    SSSSSSSSS    SSSS            SSS
+          S     SSS    SSSSSS   SSSSSSSSS   SSSSSS    SSS     S
+               SSSSS   SSSSSS   SSSSSSSSS   SSSSSS   SSSSS
+          S    SSSSS    SSSS     SSSSSSS     SSSS    SSSSS    S
+    S    SSS    SSS                                   SSS    SSS    S
+    S     S                                                   S     S
+                SSS
+                SSS
+                SSS
+                SSS
+ SSSSSSSSSSSS   SSS   SSSS       SSSS    SSSSSSSSS   SSSSSSSSSSSSSSSSSSSS
+SSSSSSSSSSSSS   SSS   SSSS       SSSS   SSSSSSSSSS  SSSSSSSSSSSSSSSSSSSSSS
+SSSS            SSS   SSSS       SSSS   SSSS        SSSS     SSSS     SSSS
+SSSS            SSS   SSSS       SSSS   SSSS        SSSS     SSSS     SSSS
+SSSSSSSSSSSS    SSS   SSSS       SSSS   SSSS        SSSS     SSSS     SSSS
+ SSSSSSSSSSSS   SSS   SSSS       SSSS   SSSS        SSSS     SSSS     SSSS
+         SSSS   SSS   SSSS       SSSS   SSSS        SSSS     SSSS     SSSS
+         SSSS   SSS   SSSS       SSSS   SSSS        SSSS     SSSS     SSSS
+SSSSSSSSSSSSS   SSS   SSSSSSSSSSSSSSS   SSSS        SSSS     SSSS     SSSS
+SSSSSSSSSSSS    SSS    SSSSSSSSSSSSS    SSSS        SSSS     SSSS     SSSS
+
+
+'''
+
+
+def start_motd():
+
+    msg = MOTD_HEADER + """
+*** Slurm is currently being installed/configured in the background. ***
+A terminal broadcast will announce when installation and configuration is
+complete.
+
+Partition {} will be marked down until the compute image has been created.
+For instances with gpus attached, it could take ~10 mins after the controller
+has finished installing.
+
+""".format(DEF_PART_NAME)
+
+    if INSTANCE_TYPE != "controller":
+        msg += """/home on the controller will be mounted over the existing /home.
+Any changes in /home will be hidden. Please wait until the installation is
+complete before making changes in your home directory.
+
+"""
+
+    f = open('/etc/motd', 'w')
+    f.write(msg)
+    f.close()
+
+
+def end_motd(broadcast=True):
+
+    f = open('/etc/motd', 'w')
+    f.write(MOTD_HEADER)
+    f.close()
+
+    if not broadcast:
+        return
+
+    subprocess.call(['wall', '-n',
+        '*** Slurm ' + INSTANCE_TYPE + ' daemon installation complete ***'])
+
+    if INSTANCE_TYPE != "controller":
+        subprocess.call(['wall', '-n', """
+/home on the controller was mounted over the existing /home.
+Either log out and log back in or cd into ~.
+"""])
+
 
 def get_external_ip():
     url = 'http://metadata/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip'
@@ -184,7 +269,8 @@ def setup_mysql():
         subprocess.call(['chown', '-R', 'mysql:mysql', '/var/lib/mysqld'])
         subprocess.call(['usermod', '-d', '/var/lib/mysql/', 'mysql'])
         subprocess.call(shlex.split('sudo service mysql start'))
-        subprocess.call(['mysql', '-u', 'root', '<', '/srv/encore/schema.sql'], shell=True)
+        prc = subprocess.Popen(['mysql', '-u', 'root'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        out, err = prc.communicate(open("/srv/encore/schema.sql", 'rb').read())
         subprocess.call(['mysql', '-u', 'root', '-e',
             "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER, MYSQL_USER_PASS)])
         subprocess.call(['mysql', '-u', 'root', '-e',
@@ -387,6 +473,8 @@ def main():
     setup_mysql()
     setup_apache()
 
+
+    start_motd()
     # Setup Slurm
     add_slurm_user()
     setup_munge()
@@ -401,8 +489,10 @@ def main():
     while "State=UP" not in str(part_state):
         part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
 
+    end_motd()
 
-    #TODO load schema into db
+    subprocess.call(shlex.split("gcloud compute instances remove-metadata {} "
+                                "--zone={} --keys=startup-script".format(get_hostname(), ZONE)))
 
 
 if __name__ == '__main__':
