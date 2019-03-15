@@ -31,6 +31,7 @@ imports:
 - path: scripts/encore-setup.py
 
 required:
+- admin_users
 - cidr
 - cluster_name
 - compute_machine_type
@@ -49,6 +50,7 @@ required:
 - private_google_access
 - region
 - secret_key
+- server_name
 - slurm_version
 - static_node_count
 - zone
@@ -97,6 +99,10 @@ optional:
 
 
 properties:
+  admin_users:
+    type        : string
+    description : Users with administrator access
+
   cidr:
     type        : string
     description : RFC1918 subnet to run instances in, eg. 10.10.0.0/16.
@@ -364,6 +370,10 @@ properties:
     type        : string
     default     : None
     description : Flask secret key.
+
+  server_name:
+    type        : string
+    description : FQDN of server to be used in flask config
 
   shared_vpc_host_project:
     type        : string
