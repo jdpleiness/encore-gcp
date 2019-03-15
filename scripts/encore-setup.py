@@ -4,23 +4,22 @@ import os
 import shlex
 import subprocess
 import time
-from pwd import getpwnam
 
 import requests
 
-CLUSTER_NAME      = '@CLUSTER_NAME@'
-MACHINE_TYPE      = '@MACHINE_TYPE@' # e.g. n1-standard-1, n1-starndard-2
-INSTANCE_TYPE     = '@INSTANCE_TYPE@' # e.g. controller, login, compute
+CLUSTER_NAME = '@CLUSTER_NAME@'
+MACHINE_TYPE = '@MACHINE_TYPE@' # e.g. n1-standard-1, n1-starndard-2
+INSTANCE_TYPE = '@INSTANCE_TYPE@' # e.g. controller, login, compute
 
-PROJECT           = '@PROJECT@'
-ZONE              = '@ZONE@'
+PROJECT = '@PROJECT@'
+ZONE = '@ZONE@'
 
-APPS_DIR          = "/apps"
-CURR_SLURM_DIR    = APPS_DIR + '/slurm/current'
-MUNGE_DIR         = "/etc/munge"
-MUNGE_KEY         = '@MUNGE_KEY@'
-SLURM_VERSION     = '@SLURM_VERSION@'
-DEF_PART_NAME     = "debug"
+APPS_DIR = "/apps"
+CURR_SLURM_DIR = APPS_DIR + '/slurm/current'
+MUNGE_DIR = "/etc/munge"
+MUNGE_KEY = '@MUNGE_KEY@'
+SLURM_VERSION = '@SLURM_VERSION@'
+DEF_PART_NAME = "debug"
 
 CONTROL_MACHINE = CLUSTER_NAME + '-controller'
 
@@ -34,6 +33,7 @@ MYSQL_SERVER = '@MYSQL_SERVER@'
 ENCORE_PATH = '@ENCORE_PATH@'
 
 # Flask config
+SERVER_NAME = "@SERVER_NAME@"
 JOB_DATA_FOLDER = "@JOB_DATA_FOLDER@"
 PHENO_DATA_FOLDER = "@PHENO_DATA_FOLDER@"
 GENO_DATA_FOLDER = "@GENO_DATA_FOLDER@"
@@ -49,6 +49,7 @@ SECRET_KEY = '@SECRET_KEY@'
 JWT_SECRET_KEY = '@JWT_SECRET_KEY@'
 GOOGLE_LOGIN_CLIENT_ID = '@GOOGLE_LOGIN_CLIENT_ID@'
 GOOGLE_LOGIN_CLIENT_SECRET = '@GOOGLE_LOGIN_CLIENT_SECRET@'
+ADMIN_USERS = '@ADMIN_USERS@'
 
 BUILD_REF = {
     "GRCh37": {
@@ -84,16 +85,13 @@ MOTD_HEADER = '''
           S    SSSSS    SSSS     SSSSSSS     SSSS    SSSSS    S
     S    SSS    SSS                                   SSS    SSS    S
     S     S                                                   S     S
-
-        _______ _       _______ _______ _______ _______      __
-        (  ____ ( (    /(  ____ (  ___  |  ____ |  ____ \    /__\
-        | (    \/  \  ( | (    \/ (   ) | (    )| (    \/   ( \/ )
-        | (__   |   \ | | |     | |   | | (____)| (__        \  /
-        |  __)  | (\ \) | |     | |   | |     __)  __)       /  \/\
-        | (     | | \   | |     | |   | | (\ (  | (         / /\  /
-        | (____/\ )  \  | (____/\ (___) | ) \ \_| (____/\  (  \/  \
-        (_______//    )_|_______(_______)/   \__(_______/   \___/\/
-
+            #######                                         ##
+            #       #    #  ####   ####  #####  ######     #  #
+            #       ##   # #    # #    # #    # #           ##
+            #####   # #  # #      #    # #    # #####      ###
+            #       #  # # #      #    # #####  #         #   # #
+            #       #   ## #    # #    # #   #  #         #    #
+            ####### #    #  ####   ####  #    # ######     ###  #
                 SSS
                 SSS
                 SSS
@@ -133,16 +131,14 @@ complete before making changes in your home directory.
 
 """
 
-    f = open('/etc/motd', 'w')
-    f.write(msg)
-    f.close()
+    with open('/etc/motd', 'w') as motd_file:
+        motd_file.write(msg)
 
 
 def end_motd(broadcast=True):
 
-    f = open('/etc/motd', 'w')
-    f.write(MOTD_HEADER)
-    f.close()
+    with open('/etc/motd', 'w') as motd_file:
+        motd_file.write(MOTD_HEADER)
 
     if not broadcast:
         return
@@ -203,8 +199,6 @@ def setup_encore():
         subprocess.call(shlex.split('cp -r /tmp/encore-encore-gcp/. /srv/encore/'))
         subprocess.call(shlex.split('rm -rf /tmp/encore.zip /tmp/encore-encore-gcp'))
 
-        server_name = get_external_ip()
-
         config = """SERVER_NAME = "{server_name}"
 
 JOB_DATA_FOLDER = "{job_data_folder}"
@@ -222,6 +216,7 @@ VCF_FILE = "{vcf_file}"
 MYSQL_DB = "encore"
 MYSQL_USER = "{mysql_user}"
 MYSQL_PASSWORD = "{mysql_password}"
+ADMIN_USERS = "{admin_users}"
 
 BUILD_REF = {{
     "GRCh37": {{
@@ -235,14 +230,14 @@ BUILD_REF = {{
 }}
 
 
-SECRET_KEY = {secret_key}
-JWT_SECRET_KEY = {jwt_secret_key}
+SECRET_KEY = "{secret_key}"
+JWT_SECRET_KEY = "{jwt_secret_key}"
 
-GOOGLE_LOGIN_CLIENT_ID = {google_login_client_id}
-GOOGLE_LOGIN_CLIENT_SECRET = {google_login_client_secret}
+GOOGLE_LOGIN_CLIENT_ID = "{google_login_client_id}"
+GOOGLE_LOGIN_CLIENT_SECRET = "{google_login_client_secret}"
 
 HELP_EMAIL = "{help_email}"
-""".format(server_name=server_name,
+""".format(server_name=SERVER_NAME,
            job_data_folder=JOB_DATA_FOLDER,
            pheno_data_folder=PHENO_DATA_FOLDER,
            geno_data_folder=GENO_DATA_FOLDER,
@@ -259,11 +254,11 @@ HELP_EMAIL = "{help_email}"
            jwt_secret_key=JWT_SECRET_KEY,
            google_login_client_id=GOOGLE_LOGIN_CLIENT_ID,
            google_login_client_secret=GOOGLE_LOGIN_CLIENT_SECRET,
-           help_email=HELP_EMAIL)
+           help_email=HELP_EMAIL,
+           admin_users=ADMIN_USERS)
 
-        f = open('/srv/encore/flask_config.py', 'w')
-        f.write(config)
-        f.close()
+        with open('/srv/encore/flask_config.py', 'w') as config_file:
+            config_file.write(config)
 
     install_python_requirements()
 
@@ -280,7 +275,8 @@ def setup_mysql():
         subprocess.call(['usermod', '-d', '/var/lib/mysql/', 'mysql'])
         subprocess.call(shlex.split('sudo service mysql start'))
         prc = subprocess.Popen(['mysql', '-u', 'root'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        out, err = prc.communicate(open("/srv/encore/schema.sql", 'rb').read())
+        _, _ = prc.communicate(open("/srv/encore/schema.sql", 'rb').read())
+        subprocess.call(['mysql', '-u', 'root', '-p', 'encore', '-e', "INSERT INTO users (id, full_name, email) VALUES ('1', 'jp', 'pleiness@umich.edu')"])
         subprocess.call(['mysql', '-u', 'root', '-e',
             "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER, MYSQL_USER_PASS)])
         subprocess.call(['mysql', '-u', 'root', '-e',
@@ -340,9 +336,8 @@ def setup_apache():
 
     if not os.path.exists('/etc/apache2/sites-available'):
         os.makedirs('/etc/apache2/sites-available')
-    f = open('/etc/apache2/sites-available/encore.conf', 'w')
-    f.write(conf)
-    f.close()
+    with open('/etc/apache2/sites-available/encore.conf', 'w') as config_file:
+        config_file.write(conf)
 
     wsgi = """#!/usr/bin/python3
 import os, sys
@@ -353,9 +348,8 @@ from encore import create_app
 application = create_app(os.path.join('{encore_path}', "flask_config.py"))
 """.format(encore_path=ENCORE_PATH)
 
-    f = open(ENCORE_PATH + '/encore.wsgi', 'w')
-    f.write(wsgi)
-    f.close()
+    with open(ENCORE_PATH + '/encore.wsgi', 'w') as config_file:
+        config_file.write(wsgi)
 
     if not os.path.exists('/etc/ssl/certs/%s.crt' % (get_external_ip())):
         subprocess.call(["sudo", "openssl", "req", "-x509", "-nodes", "-days",
@@ -378,8 +372,8 @@ def add_slurm_user():
 def setup_munge():
 
     munge_service_patch = "/lib/systemd/system/munge.service"
-    f = open(munge_service_patch, 'w')
-    f.write("""
+    with open(munge_service_patch, 'w') as munge_file:
+        munge_file.write("""
 [Unit]
 Description=MUNGE authentication service
 Documentation=man:munged(8)
@@ -388,10 +382,10 @@ After=syslog.target
 After=time-sync.target
 """)
 
-    if (INSTANCE_TYPE != "controller"):
-        f.write("RequiresMountsFor={}\n".format(MUNGE_DIR))
+        if INSTANCE_TYPE != "controller":
+            munge_file.write("RequiresMountsFor={}\n".format(MUNGE_DIR))
 
-    f.write("""
+        munge_file.write("""
 [Service]
 Type=forking
 ExecStart=/usr/sbin/munged --num-threads=10
@@ -402,35 +396,29 @@ Restart=on-abort
 
 [Install]
 WantedBy=multi-user.target""")
-    f.close()
 
     subprocess.call(['systemctl', 'enable', 'munge'])
 
-    if (INSTANCE_TYPE != "controller"):
-        f = open('/etc/fstab', 'a')
-        f.write("""
+    if INSTANCE_TYPE != "controller":
+        with open('/etc/fstab', 'a') as fstab_file:
+            fstab_file.write("""
 {1}:{0}    {0}     nfs      rw,hard,intr  0     0
 """.format(MUNGE_DIR, CONTROL_MACHINE))
-        f.close()
         return
 
     if MUNGE_KEY:
-        f = open(MUNGE_DIR +'/munge.key', 'w')
-        f.write(MUNGE_KEY)
-        f.close()
+        with open(MUNGE_DIR + '/munge.key', 'w') as munge_file:
+            munge_file.write(MUNGE_KEY)
 
         subprocess.call(['chown', '-R', 'munge:munge', MUNGE_DIR, '/var/log/munge/'])
-        os.chmod(MUNGE_DIR + '/munge.key' ,0o400)
-        os.chmod(MUNGE_DIR                ,0o700)
-        os.chmod('/var/log/munge/'        ,0o700)
+        os.chmod(MUNGE_DIR + '/munge.key', 0o400)
+        os.chmod(MUNGE_DIR, 0o700)
+        os.chmod('/var/log/munge/', 0o700)
     else:
         subprocess.call(['create-munge-key'])
 
 
 def start_munge():
-    munge_uid = getpwnam('munge').pw_uid
-    munge_gid = getpwnam('munge').pw_gid
-
     subprocess.call(shlex.split('systemctl stop munge'))
 
     # Set munge UID and GID to match NFS mount for /etc/munge
@@ -443,24 +431,23 @@ def start_munge():
 
 def setup_bash_profile():
 
-    f = open('/etc/profile.d/slurm.sh', 'w')
-    f.write("""
+    with open('/etc/profile.d/slurm.sh', 'w') as slurm_file:
+        slurm_file.write("""
 S_PATH=%s
 PATH=$PATH:$S_PATH/bin:$S_PATH/sbin
 """ % CURR_SLURM_DIR)
-    f.close()
 
 
 def setup_nfs_apps_vols():
-    f = open('/etc/fstab', 'a')
-    f.write("""
+    with open('/etc/fstab', 'a') as fstab_file:
+        fstab_file.write("""
 {1}:{0}    {0}     nfs      rw,sync,hard,intr  0     0
 """.format(APPS_DIR, CONTROL_MACHINE))
 
 
 def setup_nfs_home_vols():
-    f = open('/etc/fstab', 'a')
-    f.write("""
+    with open('/etc/fstab', 'a') as fstab_file:
+        fstab_file.write("""
 {0}:/home    /home     nfs      rw,sync,hard,intr  0     0
 """.format(CONTROL_MACHINE))
 
@@ -471,6 +458,17 @@ def mount_nfs_vols():
         time.sleep(5)
 
 
+def install_fuse():
+    with open('/etc/apt/sources.list.d/gcsfuse.list', 'w') as source_file:
+        source_file.write("deb http://packages.cloud.google.com/apt gcsfuse-bionic main")
+
+    curl_ps = subprocess.Popen(('curl', 'https://packages.cloud.google.com/apt/doc/apt-key.gpg'), stdout=subprocess.PIPE)
+    _ = subprocess.Popen(('sudo', 'apt-key', 'add'), stdin=curl_ps.stdout)
+
+    subprocess.call(shlex.split('sudo apt-get update'))
+    subprocess.call(shlex.split('sudo apt-get install gcsfuse -y'))
+
+
 def main():
     if not os.path.exists(APPS_DIR + '/slurm'):
         os.makedirs(APPS_DIR + '/slurm')
@@ -479,6 +477,7 @@ def main():
         os.makedirs('/var/log/slurm')
 
     install_packages()
+    install_fuse()
     setup_encore()
     setup_mysql()
     setup_apache()
