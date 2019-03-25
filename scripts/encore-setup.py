@@ -20,6 +20,7 @@ MUNGE_DIR = "/etc/munge"
 MUNGE_KEY = '@MUNGE_KEY@'
 SLURM_VERSION = '@SLURM_VERSION@'
 DEF_PART_NAME = "debug"
+BUCKET_NAME = '@BUCKET_NAME@'
 
 CONTROL_MACHINE = CLUSTER_NAME + '-controller'
 
@@ -469,6 +470,11 @@ def install_fuse():
     subprocess.call(shlex.split('sudo apt-get install gcsfuse -y'))
 
 
+def mount_buckets():
+    subprocess.call(shlex.split('mkdir /data'))
+    subprocess.call(shlex.split('gcsfuse -o allow_other --implicit-dirs {} /data'.format(BUCKET_NAME)))
+
+
 def main():
     if not os.path.exists(APPS_DIR + '/slurm'):
         os.makedirs(APPS_DIR + '/slurm')
@@ -478,6 +484,7 @@ def main():
 
     install_packages()
     install_fuse()
+    mount_buckets()
     setup_encore()
     setup_mysql()
     setup_apache()
@@ -503,6 +510,7 @@ def main():
     subprocess.call(shlex.split("gcloud compute instances remove-metadata {} "
                                 "--zone={} --keys=startup-script".format(get_hostname(), ZONE)))
 
+    #TODO
 
 if __name__ == '__main__':
     main()

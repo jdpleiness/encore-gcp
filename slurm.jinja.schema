@@ -56,6 +56,7 @@ required:
 - zone
 
 optional:
+- bucket_name
 - compute_disk_size_gb
 - compute_disk_type
 - controller_disk_size_gb
@@ -102,6 +103,10 @@ properties:
   admin_users:
     type        : string
     description : Users with administrator access
+
+  bucket_name:
+    type        : string
+    description : name of bucket to be used with gcsfuse mounts
 
   cidr:
     type        : string
