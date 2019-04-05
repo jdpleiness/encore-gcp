@@ -475,6 +475,10 @@ def mount_buckets():
     subprocess.call(shlex.split('gcsfuse -o allow_other --implicit-dirs {} /data'.format(BUCKET_NAME)))
 
 
+def setup_binaries():
+    subprocess.call(shlex.split('cp -r /srv/encore/plot-epacts-output/. /apps/'))
+
+
 def main():
     if not os.path.exists(APPS_DIR + '/slurm'):
         os.makedirs(APPS_DIR + '/slurm')
@@ -505,12 +509,13 @@ def main():
     while "State=UP" not in str(part_state):
         part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
 
+    setup_binaries()
+
     end_motd()
 
     subprocess.call(shlex.split("gcloud compute instances remove-metadata {} "
                                 "--zone={} --keys=startup-script".format(get_hostname(), ZONE)))
 
-    #TODO
 
 if __name__ == '__main__':
     main()

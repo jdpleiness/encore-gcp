@@ -294,7 +294,7 @@ properties:
 
   manhattan_binary:
     type        : string
-    default     : make_manhattan_json.py
+    default     : /apps/make_manhattan_json.py
     description : Binary to call to make manhattan plot.
 
   max_node_count:
@@ -359,7 +359,7 @@ properties:
 
   qqplot_binary:
     type        : string
-    default     : make_qq_json.py
+    default     : /apps/make_qq_json.py
     description : Binary called to make qqplot.
 
   queue_job_binary:
@@ -402,7 +402,7 @@ properties:
 
   tophits_binary:
     type        : string
-    default     : make_tophits_json.py
+    default     : /apps/make_tophits_json.py
     description : Binary called to make tophits plot.
 
   vcf_file:
