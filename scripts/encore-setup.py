@@ -512,7 +512,6 @@ def main():
     setup_mysql()
     setup_apache()
 
-
     start_motd()
     # Setup Slurm
     add_slurm_user()

@@ -32,28 +32,31 @@ resources:
     cidr                    : 10.10.0.0/16
 
     # ENCORE configuration fields
-    google_login_client_id      : None
-    google_login_client_secret  : None
-    jwt_secret_key              : None
-    secret_key                  : None
+    server_name                 : < your server FQDN here >
+    google_login_client_id      : < your google login client id here >
+    google_login_client_secret  : < your google login secret key here >
+    jwt_secret_key              : < your jwt secret key here >
+    secret_key                  : < your secret key here >
+    bucket_name                 : < your bucket name here >
 
-    mysql_root_pass             : test-root-pass
+    mysql_root_pass             : < your mysql root password here >
     mysql_server                : localhost
     mysql_user                  : flask_user
-    mysql_user_pass             : flask_user_pass
+    mysql_user_pass             : < your flask user password here >
+    admin_users                 : < your email/google login here >
 
     # Optional ENCORE configuration fields
-    # encore_path         : < Path to encore install >
-    # epacts_binary       : < Binary for EPACTS >
-    # geno_data_folder    : < Path to geno data >
+    # encore_path         : /srv/encore
+    # epacts_binary       : /apps/bin/epacts
+    # geno_data_folder    : /data/geno
     # help_email          : < Point of contact for help >
-    # job_data_folder     : < Path to job data folder >
-    # manhattan_binary    : < Binary for manhattan plotting >
-    # nearest_gene_bed    : < Path to nearest gene bed folder >
+    # job_data_folder     : /
+    # manhattan_binary    : /apps/make_manhattan_json.py
+    # nearest_gene_bed    : /data/nearest-gene.bed
     # pheno_data_folder   : < Path to phenotype data >
-    # qqplot_binary       : < Binary to create qqplot >
-    # queue_job_binary    : < Binary used to queue jobs >
-    # tophits_binary      : < Binary used to generate tophits >
+    # qqplot_binary       : /apps/make_qq_json.py
+    # queue_job_binary    : sbatch
+    # tophits_binary      : /apps/make_tophits_json.py
     # vcf_file            : < Path to VCF file >
 
     # Optional network configuration fields
@@ -104,7 +107,7 @@ resources:
     # Optional timer fields
     #suspend_time               : 300
 
-    default_users           : < GCP user email addr, comma separated >
+    default_users           : < your-login-here-@gmail.com >
     #slurm_version           : 18.08-latest
     #default_account         : default
 
