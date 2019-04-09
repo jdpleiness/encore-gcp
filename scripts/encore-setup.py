@@ -170,22 +170,32 @@ def get_hostname():
 
 def install_packages():
     packages = ['apache2',
+                'build-essential',
+                'cmake',
                 'curl',
+                'ghostscript',
                 'git',
+                'gnuplot',
+                'groff',
+                'help2man',
                 'libapache2-mod-wsgi-py3',
                 'libmysqlclient-dev',
                 'libffi-dev',
                 'libssl-dev',
+                'lsb-release',
                 'mysql-client',
                 'mysql-server',
                 'munge',
                 'nfs-common',
                 'python3-pip',
                 'python3-setuptools',
+                'r-base',
+                'rpm',
                 'unzip']
 
     subprocess.call(['sudo', 'apt-get', 'update'])
     subprocess.call(['sudo', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y'] + packages)
+    subprocess.call(shlex.split('pip3 install cget'))
 
     # Install libreadline6 because 18.04 only includes 5 and 7 and slurm bins need it
     subprocess.call(shlex.split('curl -L http://mirrors.kernel.org/ubuntu/pool/main/r/readline6/libreadline6_6.3-8ubuntu2_amd64.deb --output /tmp/libreadline6_6.3-8ubuntu2_amd64.deb'))
@@ -277,7 +287,7 @@ def setup_mysql():
         subprocess.call(shlex.split('sudo service mysql start'))
         prc = subprocess.Popen(['mysql', '-u', 'root'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         _, _ = prc.communicate(open("/srv/encore/schema.sql", 'rb').read())
-        subprocess.call(['mysql', '-u', 'root', '-p', 'encore', '-e', "INSERT INTO users (id, full_name, email) VALUES ('1', 'jp', 'pleiness@umich.edu')"])
+        subprocess.call(['mysql', '-u', 'root', '-p', 'encore', '-e', "INSERT INTO users (id, full_name, can_analyze, email) VALUES ('1', 'Admin', '1', '%s')" % (ADMIN_USERS)])
         subprocess.call(['mysql', '-u', 'root', '-e',
             "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER, MYSQL_USER_PASS)])
         subprocess.call(['mysql', '-u', 'root', '-e',
@@ -479,6 +489,15 @@ def setup_binaries():
     subprocess.call(shlex.split('cp -r /srv/encore/plot-epacts-output/. /apps/'))
 
 
+def install_epacts():
+    subprocess.call(shlex.split('curl -L https://github.com/statgen/epacts/archive/develop.zip --output /tmp/epacts.zip'))
+    subprocess.call(shlex.split('unzip /tmp/epacts.zip -d /tmp/'))
+    subprocess.call(shlex.split('cget install -DCMAKE_C_FLAGS="-fPIC" -DCMAKE_CXX_FLAGS="-fPIC" -f /tmp/EPACTS-develop/requirements.txt'), cwd='/tmp/EPACTS-develop')
+    subprocess.call(shlex.split('mkdir /tmp/EPACTS-develop/build'))
+    subprocess.call(shlex.split('cmake -DCMAKE_INSTALL_PREFIX=/apps/ -DCMAKE_TOOLCHAIN_FILE=/tmp/EPACTS-develop/cget/cget/cget.cmake -DCMAKE_BUILD_TYPE=Release /tmp/EPACTS-develop'), cwd='/tmp/EPACTS-develop/build')
+    subprocess.call(shlex.split('make install'), cwd='/tmp/EPACTS-develop/build')
+
+
 def main():
     if not os.path.exists(APPS_DIR + '/slurm'):
         os.makedirs(APPS_DIR + '/slurm')
@@ -510,6 +529,7 @@ def main():
         part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
 
     setup_binaries()
+    install_epacts()
 
     end_motd()
 
