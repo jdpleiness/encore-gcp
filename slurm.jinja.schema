@@ -205,7 +205,7 @@ properties:
 
   epacts_binary:
     type        : string
-    default     : epacts
+    default     : /apps/bin/epacts
     description : Name of binary for EPACTS.
 
   external_compute_ips:
@@ -217,7 +217,7 @@ properties:
 
   geno_data_folder:
     type        : string
-    default     : "./"
+    default     : "/data/geno"
     description : path to GENO data folder.
 
   gpu_type:
