@@ -31,7 +31,9 @@ INSTANCE_TYPE     = '@INSTANCE_TYPE@' # e.g. controller, login, compute
 PROJECT           = '@PROJECT@'
 ZONE              = '@ZONE@'
 
+BUCKET_NAME       = '@BUCKET_NAME@'
 APPS_DIR          = '/apps'
+JOBS_DIR          = '@JOB_DATA_FOLDER@'
 CURR_SLURM_DIR    = APPS_DIR + '/slurm/current'
 MUNGE_DIR         = "/etc/munge"
 MUNGE_KEY         = '@MUNGE_KEY@'
@@ -183,43 +185,54 @@ def have_internet():
 def install_packages():
 
     packages = ['bind-utils',
+                'bzip2-devel',
                 'epel-release',
                 'gcc',
                 'git',
-                'hwloc',
                 'hwloc-devel',
+                'hwloc',
+                'libcurl-devel',
+                'libcurl',
                 'libibmad',
                 'libibumad',
-                'lua',
                 'lua-devel',
+                'lua',
                 'man2html',
-                'mariadb',
                 'mariadb-devel',
                 'mariadb-server',
-                'munge',
+                'mariadb',
                 'munge-devel',
                 'munge-libs',
+                'munge',
                 'ncurses-devel',
                 'nfs-utils',
-                'numactl',
                 'numactl-devel',
+                'numactl',
+                'openblas-devel',
+                'openmpi',
                 'openssl-devel',
                 'pam-devel',
+                'pdsh',
                 'perl-ExtUtils-MakeMaker',
                 'python-pip',
                 'readline-devel',
                 'rpm-build',
                 'rrdtool-devel',
+                'tmux',
                 'vim',
                 'wget',
-                'tmux',
-                'pdsh',
-                'openmpi'
+                'xz-devel'
                ]
 
     while subprocess.call(['yum', 'install', '-y'] + packages):
         print "yum failed to install packages. Trying again in 5 seconds"
         time.sleep(5)
+
+    # Install python3
+    subprocess.call(shlex.split("yum groupinstall 'Development Tools' -y"))
+    subprocess.call(shlex.split('yum -y install https://centos7.iuscommunity.org/ius-release.rpm'))
+    subprocess.call(shlex.split('yum -y install python36u'))
+    subprocess.call(shlex.split('ln -s /usr/bin/python3.6 /usr/bin/python3'))
 
     while subprocess.call(['pip', 'install', '--upgrade',
         'google-api-python-client']):
@@ -236,6 +249,17 @@ def install_packages():
         subprocess.call(shlex.split("nvidia-smi")) # Creates the device files
 
 #END install_packages()
+
+
+def install_R():
+    #TODO make R version a variable
+    subprocess.call(shlex.split('curl -O https://cloud.r-project.org/src/base/R-3/R-3.5.1.tar.gz'), cwd='/tmp')
+    subprocess.call(shlex.split('tar xvzf R-3.5.1.tar.gz'), cwd='/tmp')
+    subprocess.call(shlex.split('./configure --with-x=no --with-blas="-lopenblas"'), cwd='/tmp/R-3.5.1')
+    subprocess.call(shlex.split('make'), cwd='/tmp/R-3.5.1')
+    subprocess.call(shlex.split('mkdir -p /usr/local/lib/R/lib'))
+    subprocess.call(shlex.split('make install'), cwd='/tmp/R-3.5.1')
+    subprocess.call(shlex.split('rm -rf /tmp/R-3.5.1*'))
 
 
 def setup_munge():
@@ -309,6 +333,9 @@ def setup_nfs_exports():
     f.write("""
 /etc/munge *(rw,no_subtree_check,no_root_squash)
 """)
+    f.write("""
+%s *(rw,no_subtree_check,no_root_squash)
+""" % JOBS_DIR)
     if CONTROLLER_SECONDARY_DISK:
         f.write("""
 %s  *(rw,no_subtree_check,no_root_squash)
@@ -891,10 +918,16 @@ def setup_nfs_apps_vols():
             f.write("""
 {1}:{0}    {0}     nfs      rw,hard,intr  0     0
 """.format(APPS_DIR, CONTROL_MACHINE))
+            f.write("""
+{1}:{0}    {0}     nfs      rw,hard,intr  0     0
+""".format(JOBS_DIR, CONTROL_MACHINE))
     else:
         f.write("""
 {1}:{0}    {0}     nfs      rw,hard,intr  0     0
 """.format(APPS_DIR, NFS_APPS_SERVER))
+        f.write("""
+{1}:{0}    {0}     nfs      rw,hard,intr  0     0
+""".format(JOBS_DIR, NFS_APPS_SERVER))
     f.close()
 
 #END setup_nfs_apps_vols()
@@ -1001,6 +1034,28 @@ SELINUXTYPE=targeted
 #END setup_selinux()
 
 
+def install_fuse():
+    conf = """[gcsfuse]
+name=gcsfuse (packages.cloud.google.com)
+baseurl=https://packages.cloud.google.com/yum/repos/gcsfuse-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
+       https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+"""
+    with open('/etc/yum.repos.d/gcsfuse.repo', 'w') as config_file:
+        config_file.write(conf)
+
+    subprocess.call(shlex.split('yum update -y'))
+    subprocess.call(shlex.split('yum install gcsfuse -y'))
+
+
+def mount_buckets():
+    subprocess.call(shlex.split('mkdir /data'))
+    subprocess.call(shlex.split('gcsfuse -o allow_other --implicit-dirs {} /data'.format(BUCKET_NAME)))
+
+
 def main():
 
     hostname = socket.gethostname()
@@ -1015,6 +1070,10 @@ def main():
         os.makedirs(APPS_DIR + '/slurm')
         print "ww Created Slurm Folders"
 
+    if not os.path.exists(JOBS_DIR):
+        os.makedirs(JOBS_DIR)
+        subprocess.call(shlex.split('chmod -R 777 {}'.format(JOBS_DIR)))
+
     if CONTROLLER_SECONDARY_DISK:
         if not os.path.exists(SEC_DISK_DIR):
             os.makedirs(SEC_DISK_DIR)
@@ -1026,7 +1085,10 @@ def main():
 
     add_slurm_user()
     install_packages()
+    install_R()
+    install_fuse()
     setup_munge()
+    mount_buckets()
     setup_bash_profile()
 
     if (CONTROLLER_SECONDARY_DISK and (INSTANCE_TYPE == "controller")):

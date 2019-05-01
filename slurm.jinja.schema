@@ -92,6 +92,7 @@ optional:
 - qqplot_binary
 - queue_job_binary
 - shared_vpc_host_proj
+- slurm_partition
 - tophits_binary
 - vcf_file
 - suspend_time
@@ -251,7 +252,7 @@ properties:
 
   job_data_folder:
     type        : string
-    default     : "./"
+    default     : "/jobs"
     description : Path to folder containing job data.
 
   jwt_secret_key:
@@ -342,7 +343,7 @@ properties:
 
   pheno_data_folder:
     type        : string
-    default     : "./"
+    default     : "/data/pheno"
     description : Path to the Phenotype data folder
 
   preemptible_bursting:
@@ -364,7 +365,7 @@ properties:
 
   queue_job_binary:
     type        : string
-    default     : sbatch
+    default     : /apps/slurm/current/bin/sbatch
     description : Binary called to queue job (in this case into slurm).
 
   region:
@@ -375,6 +376,11 @@ properties:
     type        : string
     default     : None
     description : Flask secret key.
+
+  saige_binary:
+    type        : string
+    default     : make -f /apps/saige/saige.v29.4.4.Makefile
+    description : Makefile wrapper path for SAIGE R library
 
   server_name:
     type        : string
@@ -399,6 +405,11 @@ properties:
   static_node_count:
     type        : integer
     description : Number of initial instances in the cluster.
+
+  slurm_partition:
+    type        : string
+    default     : encore
+    description : Name for primary slurm partition
 
   tophits_binary:
     type        : string

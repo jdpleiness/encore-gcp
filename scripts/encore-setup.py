@@ -4,6 +4,8 @@ import os
 import shlex
 import subprocess
 import time
+from grp import getgrnam
+from pwd import getpwnam
 
 import requests
 
@@ -16,6 +18,7 @@ ZONE = '@ZONE@'
 
 APPS_DIR = "/apps"
 CURR_SLURM_DIR = APPS_DIR + '/slurm/current'
+SLURM_PARTITION = '@SLURM_PARTITION@'
 MUNGE_DIR = "/etc/munge"
 MUNGE_KEY = '@MUNGE_KEY@'
 SLURM_VERSION = '@SLURM_VERSION@'
@@ -39,6 +42,7 @@ JOB_DATA_FOLDER = "@JOB_DATA_FOLDER@"
 PHENO_DATA_FOLDER = "@PHENO_DATA_FOLDER@"
 GENO_DATA_FOLDER = "@GENO_DATA_FOLDER@"
 EPACTS_BINARY = '@EPACTS_BINARY@'
+SAIGE_BINARY = '@SAIGE_BINARY@'
 QUEUE_JOB_BINARY = '@QUEUE_JOB_BINARY@'
 MANHATTAN_BINARY = '@MANHATTAN_BINARY@'
 QQPLOT_BINARY = '@QQPLOT_BINARY@'
@@ -173,33 +177,53 @@ def install_packages():
                 'build-essential',
                 'cmake',
                 'curl',
+                'gfortran',
                 'ghostscript',
                 'git',
                 'gnuplot',
                 'groff',
                 'help2man',
                 'libapache2-mod-wsgi-py3',
-                'libmysqlclient-dev',
+                'libboost-all-dev',
+                'libbz2-dev',
+                'libcurl4-openssl-dev',
                 'libffi-dev',
+                'liblzma-dev',
+                'libmysqlclient-dev',
+                'libopenblas-dev',
                 'libssl-dev',
+                'libtinfo-dev',
                 'lsb-release',
+                'munge',
                 'mysql-client',
                 'mysql-server',
-                'munge',
                 'nfs-common',
+                'python',
                 'python3-pip',
                 'python3-setuptools',
-                'r-base',
                 'rpm',
                 'unzip']
 
-    subprocess.call(['sudo', 'apt-get', 'update'])
-    subprocess.call(['sudo', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y'] + packages)
-    subprocess.call(shlex.split('pip3 install cget'))
+    subprocess.run(['sudo', 'apt-get', 'update'])
+    subprocess.run(['sudo', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y'] + packages)
+    subprocess.run(shlex.split('pip3 install cget'))
 
     # Install libreadline6 because 18.04 only includes 5 and 7 and slurm bins need it
     subprocess.call(shlex.split('curl -L http://mirrors.kernel.org/ubuntu/pool/main/r/readline6/libreadline6_6.3-8ubuntu2_amd64.deb --output /tmp/libreadline6_6.3-8ubuntu2_amd64.deb'))
+    subprocess.call(shlex.split('curl -L http://mirrors.edge.kernel.org/ubuntu/pool/main/r/readline6/libreadline6-dev_6.3-8ubuntu2_amd64.deb --output /tmp/libreadline6-dev_6.3-8ubuntu2_amd64.deb'))
     subprocess.call(shlex.split('dpkg -i /tmp/libreadline6_6.3-8ubuntu2_amd64.deb'))
+    subprocess.call(shlex.split('dpkg -i /tmp/libreadline6-dev_6.3-8ubuntu2_amd64.deb'))
+
+
+def install_R():
+    #TODO make R version a variable
+    subprocess.call(shlex.split('curl -O https://cloud.r-project.org/src/base/R-3/R-3.5.1.tar.gz'), cwd='/tmp')
+    subprocess.call(shlex.split('tar xvzf R-3.5.1.tar.gz'), cwd='/tmp')
+    subprocess.call(shlex.split('./configure --with-x=no --with-blas="-lopenblas"'), cwd='/tmp/R-3.5.1')
+    subprocess.call(shlex.split('make'), cwd='/tmp/R-3.5.1')
+    subprocess.call(shlex.split('mkdir -p /usr/local/lib/R/lib'))
+    subprocess.call(shlex.split('make install'), cwd='/tmp/R-3.5.1')
+    subprocess.call(shlex.split('rm -rf /tmp/R-3.5.1*'))
 
 
 def setup_encore():
@@ -216,11 +240,13 @@ JOB_DATA_FOLDER = "{job_data_folder}"
 PHENO_DATA_FOLDER = "{pheno_data_folder}"
 GENO_DATA_FOLDER = "{geno_data_folder}"
 EPACTS_BINARY = "{epacts_binary}"
+SAIGE_BINARY = "{saige_binary}"
 QUEUE_JOB_BINARY = "{queue_job_binary}"
 MANHATTAN_BINARY = "{manhattan_binary}"
 QQPLOT_BINARY = "{qqplot_binary}"
 TOPHITS_BINARY = "{tophits_binary}"
 NEAREST_GENE_BED = "{nearest_gene_bed}"
+QUEUE_PARTITION = "{slurm_partition}"
 
 VCF_FILE = "{vcf_file}"
 
@@ -266,12 +292,16 @@ HELP_EMAIL = "{help_email}"
            google_login_client_id=GOOGLE_LOGIN_CLIENT_ID,
            google_login_client_secret=GOOGLE_LOGIN_CLIENT_SECRET,
            help_email=HELP_EMAIL,
-           admin_users=ADMIN_USERS)
+           admin_users=ADMIN_USERS,
+           slurm_partition=SLURM_PARTITION,
+           saige_binary=SAIGE_BINARY)
 
         with open('/srv/encore/flask_config.py', 'w') as config_file:
             config_file.write(config)
 
     install_python_requirements()
+    subprocess.call(shlex.split('adduser --disabled-password --gecos "" encore'))
+    subprocess.call(shlex.split('usermod -a -G www-data encore'))
 
 
 def install_python_requirements():
@@ -324,7 +354,7 @@ def setup_apache():
     SSLCertificateFile    /etc/ssl/certs/{encore_url}.crt
     SSLCertificateKeyFile /etc/ssl/private/{encore_url}.key
 
-    WSGIDaemonProcess {encore_url} processes=1 threads=1 home={encore_path}
+    WSGIDaemonProcess {encore_url} user=encore group=encore processes=5 threads=25 home={encore_path}
     WSGIProcessGroup {encore_url}
     WSGIScriptAlias / {encore_path}/encore.wsgi
 	WSGIPassAuthorization On
@@ -454,6 +484,9 @@ def setup_nfs_apps_vols():
         fstab_file.write("""
 {1}:{0}    {0}     nfs      rw,sync,hard,intr  0     0
 """.format(APPS_DIR, CONTROL_MACHINE))
+        fstab_file.write("""
+{1}:{0}    {0}     nfs      rw,sync,hard,intr  0     0
+""".format(JOB_DATA_FOLDER, CONTROL_MACHINE))
 
 
 def setup_nfs_home_vols():
@@ -482,33 +515,45 @@ def install_fuse():
 
 def mount_buckets():
     subprocess.call(shlex.split('mkdir /data'))
-    subprocess.call(shlex.split('gcsfuse -o allow_other --implicit-dirs {} /data'.format(BUCKET_NAME)))
+    subprocess.call(shlex.split('gcsfuse --uid {} --gid {} -o allow_other --implicit-dirs {} /data'.format(getpwnam('encore')[2], getgrnam('encore')[2], BUCKET_NAME)))
 
 
 def setup_binaries():
-    subprocess.call(shlex.split('cp -r /srv/encore/plot-epacts-output/. /apps/'))
+    subprocess.run(shlex.split('cp -r /srv/encore/plot-epacts-output/. /apps/'))
+    subprocess.run(shlex.split('cp -r /srv/encore/rscripts/. /apps/saige/'))
 
 
 def install_epacts():
-    subprocess.call(shlex.split('curl -L https://github.com/statgen/epacts/archive/develop.zip --output /tmp/epacts.zip'))
-    subprocess.call(shlex.split('unzip /tmp/epacts.zip -d /tmp/'))
-    subprocess.call(shlex.split('cget install -DCMAKE_C_FLAGS="-fPIC" -DCMAKE_CXX_FLAGS="-fPIC" -f /tmp/EPACTS-develop/requirements.txt'), cwd='/tmp/EPACTS-develop')
-    subprocess.call(shlex.split('mkdir /tmp/EPACTS-develop/build'))
-    subprocess.call(shlex.split('cmake -DCMAKE_INSTALL_PREFIX=/apps/ -DCMAKE_TOOLCHAIN_FILE=/tmp/EPACTS-develop/cget/cget/cget.cmake -DCMAKE_BUILD_TYPE=Release /tmp/EPACTS-develop'), cwd='/tmp/EPACTS-develop/build')
-    subprocess.call(shlex.split('make install'), cwd='/tmp/EPACTS-develop/build')
+    subprocess.run(shlex.split('curl -L https://github.com/statgen/epacts/archive/develop.zip --output /tmp/epacts.zip'))
+    subprocess.run(shlex.split('unzip /tmp/epacts.zip -d /tmp/'))
+    subprocess.run(shlex.split('cget install -DCMAKE_C_FLAGS="-fPIC" -DCMAKE_CXX_FLAGS="-fPIC" -f /tmp/EPACTS-develop/requirements.txt'), cwd='/tmp/EPACTS-develop')
+    subprocess.run(shlex.split('mkdir /tmp/EPACTS-develop/build'))
+    subprocess.run(shlex.split('cmake -DCMAKE_INSTALL_PREFIX=/apps/ -DCMAKE_TOOLCHAIN_FILE=/tmp/EPACTS-develop/cget/cget/cget.cmake -DCMAKE_BUILD_TYPE=Release /tmp/EPACTS-develop'), cwd='/tmp/EPACTS-develop/build')
+    subprocess.run(shlex.split('make install'), cwd='/tmp/EPACTS-develop/build')
+
+def install_saige():
+    subprocess.run(shlex.split('mkdir /apps/saige'))
+    subprocess.run(shlex.split("""Rscript -e 'install.packages(c("devtools","optparse"), repos = "http://cran.us.r-project.org")'"""), env=dict(os.environ, R_LIBS_SITE="/apps/saige"))
+    subprocess.run(shlex.split("""Rscript -e 'devtools::install_github("weizhouUMICH/SAIGE", ref = "e62ca96")'"""), env=dict(os.environ, R_LIBS_SITE="/apps/saige"))
 
 
 def main():
     if not os.path.exists(APPS_DIR + '/slurm'):
         os.makedirs(APPS_DIR + '/slurm')
 
+    if not os.path.exists(JOB_DATA_FOLDER):
+        os.makedirs(JOB_DATA_FOLDER)
+        subprocess.run(shlex.split('chown -R encore:encore {}'.format(JOB_DATA_FOLDER)))
+        subprocess.run(shlex.split('chmod -R 777 {}'.format(JOB_DATA_FOLDER)))
+
     if not os.path.exists('/var/log/slurm'):
         os.makedirs('/var/log/slurm')
 
     install_packages()
+    install_R()
     install_fuse()
-    mount_buckets()
     setup_encore()
+    mount_buckets()
     setup_mysql()
     setup_apache()
 
@@ -523,12 +568,14 @@ def main():
 
     start_munge()
 
+    # wait for slurm parition to come online
     part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
     while "State=UP" not in str(part_state):
         part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
 
     setup_binaries()
     install_epacts()
+    install_saige()
 
     end_motd()
 

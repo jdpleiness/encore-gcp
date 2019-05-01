@@ -478,16 +478,16 @@ done by the client commands first checking with the SlurmDBD for the requested
 cluster's IP address and port which the client can then communicate directly
 with the cluster.
 
-For more information see:  
-[Multi-Cluster Operation](https://slurm.schedmd.com/multi_cluster.html)  
+For more information see:
+[Multi-Cluster Operation](https://slurm.schedmd.com/multi_cluster.html)
 [Federated Scheduling Guide](https://slurm.schedmd.com/federation.html)
 
 **NOTE:** Either all clusters and the SlurmDBD must share the same MUNGE key
 or use a separate MUNGE key for each cluster and another key for use between
 each cluster and the SlurmDBD. In order for cross-cluster interactive jobs to
 work, the clusters must share the same MUNGE key. See the following for more
-information:  
-[Multi-Cluster Operation](https://slurm.schedmd.com/multi_cluster.html)  
+information:
+[Multi-Cluster Operation](https://slurm.schedmd.com/multi_cluster.html)
 [Accounting and Resource Limits](https://slurm.schedmd.com/accounting.html)
 
 **NOTE:** All clusters attached to a single SlurmDBD must share the same user
@@ -561,7 +561,7 @@ space (e.g. same uids across all the clusters).
    nodes must be accessible from the login nodes on each cluster
    (e.g. a vpn connection between project1 and project3).
 
-   slurmd ports:  
+   slurmd ports:
    1. On project1 and project3's GCP Console, navigate to VPC network->Firewall rules
    2. Click CREATE FIREWALL RULE at the top of the page.
    3. Fill in the following fields:
@@ -581,7 +581,7 @@ space (e.g. same uids across all the clusters).
       ```
    4. Click Create
 
-   srun ports:  
+   srun ports:
    1. On project1 and project3's GCP Consoles, navigate to VPC network->Firewall rules
    2. Click CREATE FIREWALL RULE at the top of the page.
    3. Fill in the following fields:

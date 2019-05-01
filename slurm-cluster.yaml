@@ -46,14 +46,16 @@ resources:
     admin_users                 : < your email/google login here >
 
     # Optional ENCORE configuration fields
+    # slurm_partition     : encore
     # encore_path         : /srv/encore
     # epacts_binary       : /apps/bin/epacts
+    # saige_binary        : make -f /apps/saige/saige.v29.4.4.Makefile
     # geno_data_folder    : /data/geno
     # help_email          : < Point of contact for help >
-    # job_data_folder     : /
+    # job_data_folder     : /jobs
     # manhattan_binary    : /apps/make_manhattan_json.py
     # nearest_gene_bed    : /data/nearest-gene.bed
-    # pheno_data_folder   : < Path to phenotype data >
+    # pheno_data_folder   : /data/pheno
     # qqplot_binary       : /apps/make_qq_json.py
     # queue_job_binary    : sbatch
     # tophits_binary      : /apps/make_tophits_json.py
@@ -107,7 +109,7 @@ resources:
     # Optional timer fields
     #suspend_time               : 300
 
-    default_users           : < your-login-here-@gmail.com >
+    default_users            : < GCP user email addr, comma separated >
     #slurm_version           : 18.08-latest
     #default_account         : default
 
