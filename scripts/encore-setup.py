@@ -177,7 +177,6 @@ def install_packages():
                 'build-essential',
                 'cmake',
                 'curl',
-                'gfortran',
                 'ghostscript',
                 'git',
                 'gnuplot',
@@ -185,7 +184,6 @@ def install_packages():
                 'help2man',
                 'libapache2-mod-wsgi-py3',
                 'libboost-all-dev',
-                'libbz2-dev',
                 'libcurl4-openssl-dev',
                 'libffi-dev',
                 'liblzma-dev',
@@ -206,24 +204,12 @@ def install_packages():
 
     subprocess.run(['sudo', 'apt-get', 'update'])
     subprocess.run(['sudo', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y'] + packages)
-    subprocess.run(shlex.split('pip3 install cget'))
 
     # Install libreadline6 because 18.04 only includes 5 and 7 and slurm bins need it
     subprocess.call(shlex.split('curl -L http://mirrors.kernel.org/ubuntu/pool/main/r/readline6/libreadline6_6.3-8ubuntu2_amd64.deb --output /tmp/libreadline6_6.3-8ubuntu2_amd64.deb'))
     subprocess.call(shlex.split('curl -L http://mirrors.edge.kernel.org/ubuntu/pool/main/r/readline6/libreadline6-dev_6.3-8ubuntu2_amd64.deb --output /tmp/libreadline6-dev_6.3-8ubuntu2_amd64.deb'))
     subprocess.call(shlex.split('dpkg -i /tmp/libreadline6_6.3-8ubuntu2_amd64.deb'))
     subprocess.call(shlex.split('dpkg -i /tmp/libreadline6-dev_6.3-8ubuntu2_amd64.deb'))
-
-
-def install_R():
-    #TODO make R version a variable
-    subprocess.call(shlex.split('curl -O https://cloud.r-project.org/src/base/R-3/R-3.5.1.tar.gz'), cwd='/tmp')
-    subprocess.call(shlex.split('tar xvzf R-3.5.1.tar.gz'), cwd='/tmp')
-    subprocess.call(shlex.split('./configure --with-x=no --with-blas="-lopenblas"'), cwd='/tmp/R-3.5.1')
-    subprocess.call(shlex.split('make'), cwd='/tmp/R-3.5.1')
-    subprocess.call(shlex.split('mkdir -p /usr/local/lib/R/lib'))
-    subprocess.call(shlex.split('make install'), cwd='/tmp/R-3.5.1')
-    subprocess.call(shlex.split('rm -rf /tmp/R-3.5.1*'))
 
 
 def setup_encore():
@@ -300,7 +286,7 @@ HELP_EMAIL = "{help_email}"
             config_file.write(config)
 
     install_python_requirements()
-    subprocess.call(shlex.split('adduser --disabled-password --gecos "" encore'))
+    subprocess.call(shlex.split('adduser --disabled-password --gecos "" --shell /bin/bash encore'))
     subprocess.call(shlex.split('usermod -a -G www-data encore'))
 
 
@@ -473,27 +459,27 @@ def start_munge():
 def setup_bash_profile():
 
     with open('/etc/profile.d/slurm.sh', 'w') as slurm_file:
-        slurm_file.write("""
-S_PATH=%s
+        slurm_file.write(f"""
+S_PATH={CURR_SLURM_DIR}
 PATH=$PATH:$S_PATH/bin:$S_PATH/sbin
-""" % CURR_SLURM_DIR)
+""")
 
 
 def setup_nfs_apps_vols():
     with open('/etc/fstab', 'a') as fstab_file:
-        fstab_file.write("""
-{1}:{0}    {0}     nfs      rw,sync,hard,intr  0     0
-""".format(APPS_DIR, CONTROL_MACHINE))
-        fstab_file.write("""
-{1}:{0}    {0}     nfs      rw,sync,hard,intr  0     0
-""".format(JOB_DATA_FOLDER, CONTROL_MACHINE))
+        fstab_file.write(f"""
+{CONTROL_MACHINE}:{APPS_DIR}    {APPS_DIR}     nfs      rw,sync,hard,intr  0     0
+""")
+        fstab_file.write(f"""
+{CONTROL_MACHINE}:{JOB_DATA_FOLDER}    {JOB_DATA_FOLDER}     nfs      rw,sync,hard,intr  0     0
+""")
 
 
 def setup_nfs_home_vols():
     with open('/etc/fstab', 'a') as fstab_file:
-        fstab_file.write("""
-{0}:/home    /home     nfs      rw,sync,hard,intr  0     0
-""".format(CONTROL_MACHINE))
+        fstab_file.write(f"""
+{CONTROL_MACHINE}:/home    /home     nfs      rw,sync,hard,intr  0     0
+""")
 
 
 def mount_nfs_vols():
@@ -515,26 +501,12 @@ def install_fuse():
 
 def mount_buckets():
     subprocess.call(shlex.split('mkdir /data'))
-    subprocess.call(shlex.split('gcsfuse --uid {} --gid {} -o allow_other --implicit-dirs {} /data'.format(getpwnam('encore')[2], getgrnam('encore')[2], BUCKET_NAME)))
+    subprocess.call(shlex.split(f"gcsfuse --uid {getpwnam('encore')[2]} --gid {getgrnam('encore')[2]} -o allow_other --implicit-dirs {BUCKET_NAME} /data"))
 
 
 def setup_binaries():
     subprocess.run(shlex.split('cp -r /srv/encore/plot-epacts-output/. /apps/'))
     subprocess.run(shlex.split('cp -r /srv/encore/rscripts/. /apps/saige/'))
-
-
-def install_epacts():
-    subprocess.run(shlex.split('curl -L https://github.com/statgen/epacts/archive/develop.zip --output /tmp/epacts.zip'))
-    subprocess.run(shlex.split('unzip /tmp/epacts.zip -d /tmp/'))
-    subprocess.run(shlex.split('cget install -DCMAKE_C_FLAGS="-fPIC" -DCMAKE_CXX_FLAGS="-fPIC" -f /tmp/EPACTS-develop/requirements.txt'), cwd='/tmp/EPACTS-develop')
-    subprocess.run(shlex.split('mkdir /tmp/EPACTS-develop/build'))
-    subprocess.run(shlex.split('cmake -DCMAKE_INSTALL_PREFIX=/apps/ -DCMAKE_TOOLCHAIN_FILE=/tmp/EPACTS-develop/cget/cget/cget.cmake -DCMAKE_BUILD_TYPE=Release /tmp/EPACTS-develop'), cwd='/tmp/EPACTS-develop/build')
-    subprocess.run(shlex.split('make install'), cwd='/tmp/EPACTS-develop/build')
-
-def install_saige():
-    subprocess.run(shlex.split('mkdir /apps/saige'))
-    subprocess.run(shlex.split("""Rscript -e 'install.packages(c("devtools","optparse"), repos = "http://cran.us.r-project.org")'"""), env=dict(os.environ, R_LIBS_SITE="/apps/saige"))
-    subprocess.run(shlex.split("""Rscript -e 'devtools::install_github("weizhouUMICH/SAIGE", ref = "e62ca96")'"""), env=dict(os.environ, R_LIBS_SITE="/apps/saige"))
 
 
 def main():
@@ -543,14 +515,13 @@ def main():
 
     if not os.path.exists(JOB_DATA_FOLDER):
         os.makedirs(JOB_DATA_FOLDER)
-        subprocess.run(shlex.split('chown -R encore:encore {}'.format(JOB_DATA_FOLDER)))
-        subprocess.run(shlex.split('chmod -R 777 {}'.format(JOB_DATA_FOLDER)))
+        subprocess.run(shlex.split(f'chown -R encore:encore {JOB_DATA_FOLDER}'))
+        subprocess.run(shlex.split(f'chmod -R 777 {JOB_DATA_FOLDER}'))
 
     if not os.path.exists('/var/log/slurm'):
         os.makedirs('/var/log/slurm')
 
     install_packages()
-    install_R()
     install_fuse()
     setup_encore()
     mount_buckets()
@@ -569,18 +540,16 @@ def main():
     start_munge()
 
     # wait for slurm parition to come online
-    part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
+    part_state = subprocess.check_output(shlex.split(f"{CURR_SLURM_DIR}/bin/scontrol show part {DEF_PART_NAME}"))
     while "State=UP" not in str(part_state):
-        part_state = subprocess.check_output(shlex.split("{}/bin/scontrol show part {}".format(CURR_SLURM_DIR, DEF_PART_NAME)))
+        part_state = subprocess.check_output(shlex.split(f"{CURR_SLURM_DIR}/bin/scontrol show part {DEF_PART_NAME}"))
 
     setup_binaries()
-    install_epacts()
-    install_saige()
 
     end_motd()
 
-    subprocess.call(shlex.split("gcloud compute instances remove-metadata {} "
-                                "--zone={} --keys=startup-script".format(get_hostname(), ZONE)))
+    subprocess.call(shlex.split(f"gcloud compute instances remove-metadata {get_hostname()} "
+                                f"--zone={ZONE} --keys=startup-script"))
 
 
 if __name__ == '__main__':

@@ -185,10 +185,17 @@ def have_internet():
 def install_packages():
 
     packages = ['bind-utils',
+                'boost-devel',
+                'boost-thread',
+                'boost',
                 'bzip2-devel',
+                'cmake3',
                 'epel-release',
                 'gcc',
+                'ghostscript',
                 'git',
+                'gnuplot',
+                'groff',
                 'hwloc-devel',
                 'hwloc',
                 'libcurl-devel',
@@ -214,7 +221,12 @@ def install_packages():
                 'pam-devel',
                 'pdsh',
                 'perl-ExtUtils-MakeMaker',
+                'python-devel',
                 'python-pip',
+                'python36-devel',
+                'python36-pip',
+                'python36',
+                'R',
                 'readline-devel',
                 'rpm-build',
                 'rrdtool-devel',
@@ -224,18 +236,17 @@ def install_packages():
                 'xz-devel'
                ]
 
+    subprocess.call(shlex.split('yum install -y epel-release'))
+
     while subprocess.call(['yum', 'install', '-y'] + packages):
         print "yum failed to install packages. Trying again in 5 seconds"
         time.sleep(5)
 
-    # Install python3
     subprocess.call(shlex.split("yum groupinstall 'Development Tools' -y"))
-    subprocess.call(shlex.split('yum -y install https://centos7.iuscommunity.org/ius-release.rpm'))
-    subprocess.call(shlex.split('yum -y install python36u'))
-    subprocess.call(shlex.split('ln -s /usr/bin/python3.6 /usr/bin/python3'))
+    subprocess.call(shlex.split('ln -s /usr/bin/cmake3 /usr/bin/cmake'))
 
     while subprocess.call(['pip', 'install', '--upgrade',
-        'google-api-python-client']):
+        'google-api-python-client', 'cget']):
         print "failed to install google python api client. Trying again 5 seconds."
         time.sleep(5)
 
@@ -249,17 +260,6 @@ def install_packages():
         subprocess.call(shlex.split("nvidia-smi")) # Creates the device files
 
 #END install_packages()
-
-
-def install_R():
-    #TODO make R version a variable
-    subprocess.call(shlex.split('curl -O https://cloud.r-project.org/src/base/R-3/R-3.5.1.tar.gz'), cwd='/tmp')
-    subprocess.call(shlex.split('tar xvzf R-3.5.1.tar.gz'), cwd='/tmp')
-    subprocess.call(shlex.split('./configure --with-x=no --with-blas="-lopenblas"'), cwd='/tmp/R-3.5.1')
-    subprocess.call(shlex.split('make'), cwd='/tmp/R-3.5.1')
-    subprocess.call(shlex.split('mkdir -p /usr/local/lib/R/lib'))
-    subprocess.call(shlex.split('make install'), cwd='/tmp/R-3.5.1')
-    subprocess.call(shlex.split('rm -rf /tmp/R-3.5.1*'))
 
 
 def setup_munge():
@@ -1051,9 +1051,24 @@ gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
     subprocess.call(shlex.split('yum install gcsfuse -y'))
 
 
-def mount_buckets():
+def mount_gcp_storage_buckets():
     subprocess.call(shlex.split('mkdir /data'))
     subprocess.call(shlex.split('gcsfuse -o allow_other --implicit-dirs {} /data'.format(BUCKET_NAME)))
+
+
+def install_saige():
+    subprocess.call(shlex.split('mkdir /apps/saige'))
+    subprocess.call(shlex.split("""Rscript -e 'install.packages(c("devtools","optparse"), repos = "http://cran.us.r-project.org")'"""))
+    subprocess.call(shlex.split("""Rscript -e 'devtools::install_github("weizhouUMICH/SAIGE", ref= "57d2505")'"""))
+
+
+def install_epacts():
+    subprocess.call(shlex.split('curl -L https://github.com/statgen/epacts/archive/develop.zip --output /tmp/epacts.zip'))
+    subprocess.call(shlex.split('unzip /tmp/epacts.zip -d /tmp/'))
+    subprocess.call(shlex.split('cget install -DCMAKE_C_FLAGS="-fPIC" -DCMAKE_CXX_FLAGS="-fPIC" -f /tmp/EPACTS-develop/requirements.txt'), cwd='/tmp/EPACTS-develop')
+    subprocess.call(shlex.split('mkdir /tmp/EPACTS-develop/build'))
+    subprocess.call(shlex.split('cmake -DCMAKE_TOOLCHAIN_FILE=/tmp/EPACTS-develop/cget/cget/cget.cmake -DCMAKE_BUILD_TYPE=Release /tmp/EPACTS-develop'), cwd='/tmp/EPACTS-develop/build')
+    subprocess.call(shlex.split('make install'), cwd='/tmp/EPACTS-develop/build')
 
 
 def main():
@@ -1085,10 +1100,9 @@ def main():
 
     add_slurm_user()
     install_packages()
-    install_R()
     install_fuse()
     setup_munge()
-    mount_buckets()
+    mount_gcp_storage_buckets()
     setup_bash_profile()
 
     if (CONTROLLER_SECONDARY_DISK and (INSTANCE_TYPE == "controller")):
@@ -1097,6 +1111,9 @@ def main():
     setup_nfs_apps_vols()
     setup_nfs_home_vols()
     setup_nfs_sec_vols()
+
+    install_epacts()
+    install_saige()
 
     if INSTANCE_TYPE == "controller":
         mount_nfs_vols()
