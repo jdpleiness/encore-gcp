@@ -118,16 +118,16 @@ SSSSSSSSSSSS    SSS    SSSSSSSSSSSSS    SSSS        SSSS     SSSS     SSSS
 
 def start_motd():
 
-    msg = MOTD_HEADER + """
+    msg = MOTD_HEADER + f"""
 *** Slurm is currently being installed/configured in the background. ***
 A terminal broadcast will announce when installation and configuration is
 complete.
 
-Partition {} will be marked down until the compute image has been created.
+Partition {DEF_PART_NAME} will be marked down until the compute image has been created.
 For instances with gpus attached, it could take ~10 mins after the controller
 has finished installing.
 
-""".format(DEF_PART_NAME)
+"""
 
     if INSTANCE_TYPE != "controller":
         msg += """/home on the controller will be mounted over the existing /home.
@@ -220,26 +220,26 @@ def setup_encore():
         subprocess.call(shlex.split('cp -r /tmp/encore-encore-gcp/. /srv/encore/'))
         subprocess.call(shlex.split('rm -rf /tmp/encore.zip /tmp/encore-encore-gcp'))
 
-        config = """SERVER_NAME = "{server_name}"
+        config = f"""SERVER_NAME = "{SERVER_NAME}"
 
-JOB_DATA_FOLDER = "{job_data_folder}"
-PHENO_DATA_FOLDER = "{pheno_data_folder}"
-GENO_DATA_FOLDER = "{geno_data_folder}"
-EPACTS_BINARY = "{epacts_binary}"
-SAIGE_BINARY = "{saige_binary}"
-QUEUE_JOB_BINARY = "{queue_job_binary}"
-MANHATTAN_BINARY = "{manhattan_binary}"
-QQPLOT_BINARY = "{qqplot_binary}"
-TOPHITS_BINARY = "{tophits_binary}"
-NEAREST_GENE_BED = "{nearest_gene_bed}"
-QUEUE_PARTITION = "{slurm_partition}"
+JOB_DATA_FOLDER = "{JOB_DATA_FOLDER}"
+PHENO_DATA_FOLDER = "{PHENO_DATA_FOLDER}"
+GENO_DATA_FOLDER = "{GENO_DATA_FOLDER}"
+EPACTS_BINARY = "{EPACTS_BINARY}"
+SAIGE_BINARY = "{SAIGE_BINARY}"
+QUEUE_JOB_BINARY = "{QUEUE_JOB_BINARY}"
+MANHATTAN_BINARY = "{MANHATTAN_BINARY}"
+QQPLOT_BINARY = "{QQPLOT_BINARY}"
+TOPHITS_BINARY = "{TOPHITS_BINARY}"
+NEAREST_GENE_BED = "{NEAREST_GENE_BED}"
+QUEUE_PARTITION = "{SLURM_PARTITION}"
 
-VCF_FILE = "{vcf_file}"
+VCF_FILE = "{VCF_FILE}"
 
 MYSQL_DB = "encore"
-MYSQL_USER = "{mysql_user}"
-MYSQL_PASSWORD = "{mysql_password}"
-ADMIN_USERS = "{admin_users}"
+MYSQL_USER = "{MYSQL_USER}"
+MYSQL_PASSWORD = "{MYSQL_USER_PASS}"
+ADMIN_USERS = "{ADMIN_USERS}"
 
 BUILD_REF = {{
     "GRCh37": {{
@@ -253,34 +253,14 @@ BUILD_REF = {{
 }}
 
 
-SECRET_KEY = "{secret_key}"
-JWT_SECRET_KEY = "{jwt_secret_key}"
+SECRET_KEY = "{SECRET_KEY}"
+JWT_SECRET_KEY = "{JWT_SECRET_KEY}"
 
-GOOGLE_LOGIN_CLIENT_ID = "{google_login_client_id}"
-GOOGLE_LOGIN_CLIENT_SECRET = "{google_login_client_secret}"
+GOOGLE_LOGIN_CLIENT_ID = "{GOOGLE_LOGIN_CLIENT_ID}"
+GOOGLE_LOGIN_CLIENT_SECRET = "{GOOGLE_LOGIN_CLIENT_SECRET}"
 
-HELP_EMAIL = "{help_email}"
-""".format(server_name=SERVER_NAME,
-           job_data_folder=JOB_DATA_FOLDER,
-           pheno_data_folder=PHENO_DATA_FOLDER,
-           geno_data_folder=GENO_DATA_FOLDER,
-           epacts_binary=EPACTS_BINARY,
-           queue_job_binary=QUEUE_JOB_BINARY,
-           manhattan_binary=MANHATTAN_BINARY,
-           qqplot_binary=QQPLOT_BINARY,
-           tophits_binary=TOPHITS_BINARY,
-           nearest_gene_bed=NEAREST_GENE_BED,
-           vcf_file=VCF_FILE,
-           mysql_user=MYSQL_USER,
-           mysql_password=MYSQL_USER_PASS,
-           secret_key=SECRET_KEY,
-           jwt_secret_key=JWT_SECRET_KEY,
-           google_login_client_id=GOOGLE_LOGIN_CLIENT_ID,
-           google_login_client_secret=GOOGLE_LOGIN_CLIENT_SECRET,
-           help_email=HELP_EMAIL,
-           admin_users=ADMIN_USERS,
-           slurm_partition=SLURM_PARTITION,
-           saige_binary=SAIGE_BINARY)
+HELP_EMAIL = "{HELP_EMAIL}"
+"""
 
         with open('/srv/encore/flask_config.py', 'w') as config_file:
             config_file.write(config)
@@ -303,46 +283,46 @@ def setup_mysql():
         subprocess.call(shlex.split('sudo service mysql start'))
         prc = subprocess.Popen(['mysql', '-u', 'root'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         _, _ = prc.communicate(open("/srv/encore/schema.sql", 'rb').read())
-        subprocess.call(['mysql', '-u', 'root', '-p', 'encore', '-e', "INSERT INTO users (id, full_name, can_analyze, email) VALUES ('1', 'Admin', '1', '%s')" % (ADMIN_USERS)])
+        subprocess.call(['mysql', '-u', 'root', '-p', 'encore', '-e', f"INSERT INTO users (id, full_name, can_analyze, email) VALUES ('1', 'Admin', '1', '{ADMIN_USERS}')"])
         subprocess.call(['mysql', '-u', 'root', '-e',
-            "CREATE USER '%s'@'%s' IDENTIFIED BY '%s'" % (MYSQL_USER, MYSQL_SERVER, MYSQL_USER_PASS)])
+            f"CREATE USER '{MYSQL_USER}'@'{MYSQL_SERVER}' IDENTIFIED BY '{MYSQL_USER_PASS}'"])
         subprocess.call(['mysql', '-u', 'root', '-e',
-            "GRANT DELETE, INSERT, SELECT, UPDATE, EXECUTE ON encore.* TO '%s'@'%s'" % (MYSQL_USER, MYSQL_SERVER)])
+            f"GRANT DELETE, INSERT, SELECT, UPDATE, EXECUTE ON encore.* TO '{MYSQL_USER}'@'{MYSQL_SERVER}'"])
         subprocess.call(['mysql', '-u', 'root', '-e',
             "DELETE FROM mysql.user WHERE User=''"])
         subprocess.call(['mysql', '-u', 'root', '-e',
             "FLUSH PRIVILEGES"])
         subprocess.call(['mysql', '-u', 'root', '-e',
-            "ALTER USER 'root'@'%s' IDENTIFIED WITH mysql_native_password BY '%s'" % (MYSQL_SERVER, MYSQL_ROOT_PASS)])
+            f"ALTER USER 'root'@'{MYSQL_SERVER}' IDENTIFIED WITH mysql_native_password BY '{MYSQL_ROOT_PASS}'"])
 
 
 def setup_apache():
     subprocess.call(['sudo', 'a2enmod', 'wsgi'])
     subprocess.call(['sudo', 'a2enmod', 'ssl'])
 
-    conf = """<VirtualHost *:80>
-    ServerAdmin webmaster@{encore_url}
-    ServerName {encore_url}
-    Redirect permanent / https://{encore_url}/
-    ErrorLog "/var/log/apache2/{encore_url}-error.log"
-    CustomLog "/var/log/apache2/{encore_url}-access.log" common
+    conf = f"""<VirtualHost *:80>
+    ServerAdmin webmaster@{get_external_ip()}
+    ServerName {get_external_ip()}
+    Redirect permanent / https://{get_external_ip()}/
+    ErrorLog "/var/log/apache2/{get_external_ip()}-error.log"
+    CustomLog "/var/log/apache2/{get_external_ip()}-access.log" common
 </VirtualHost>
 
 <VirtualHost *:443>
-    ServerAdmin webmaster@{encore_url}
-    DocumentRoot "{encore_path}"
-    ServerName {encore_url}
-    ErrorLog "/var/log/apache2/{encore_url}-error.log"
-    CustomLog "/var/log/apache2/{encore_url}-access.log" common
+    ServerAdmin webmaster@{get_external_ip()}
+    DocumentRoot "{ENCORE_PATH}"
+    ServerName {get_external_ip()}
+    ErrorLog "/var/log/apache2/{get_external_ip()}-error.log"
+    CustomLog "/var/log/apache2/{get_external_ip()}-access.log" common
 
     SSLEngine on
 
-    SSLCertificateFile    /etc/ssl/certs/{encore_url}.crt
-    SSLCertificateKeyFile /etc/ssl/private/{encore_url}.key
+    SSLCertificateFile    /etc/ssl/certs/{get_external_ip()}.crt
+    SSLCertificateKeyFile /etc/ssl/private/{get_external_ip()}.key
 
-    WSGIDaemonProcess {encore_url} user=encore group=encore processes=5 threads=25 home={encore_path}
-    WSGIProcessGroup {encore_url}
-    WSGIScriptAlias / {encore_path}/encore.wsgi
+    WSGIDaemonProcess {get_external_ip()} user=encore group=encore processes=5 threads=25 home={ENCORE_PATH}
+    WSGIProcessGroup {get_external_ip()}
+    WSGIScriptAlias / {ENCORE_PATH}/encore.wsgi
 	WSGIPassAuthorization On
 
     <Location /server-info>
@@ -351,38 +331,37 @@ def setup_apache():
       Deny from all
     </Location>
 
-    <Directory {encore_path}>
+    <Directory {ENCORE_PATH}>
         Require all granted
     </Directory>
 
-    <Files {encore_path}/encore.wsgi>
+    <Files {ENCORE_PATH}/encore.wsgi>
         Require all granted
     </Files>
 </VirtualHost>
-""".format(encore_url=get_external_ip(), encore_path=ENCORE_PATH)
+"""
 
     if not os.path.exists('/etc/apache2/sites-available'):
         os.makedirs('/etc/apache2/sites-available')
     with open('/etc/apache2/sites-available/encore.conf', 'w') as config_file:
         config_file.write(conf)
 
-    wsgi = """#!/usr/bin/python3
+    wsgi = f"""#!/usr/bin/python3
 import os, sys
 
-sys.path.insert(0, '{encore_path}')
+sys.path.insert(0, '{ENCORE_PATH}')
 
 from encore import create_app
-application = create_app(os.path.join('{encore_path}', "flask_config.py"))
-""".format(encore_path=ENCORE_PATH)
+application = create_app(os.path.join('{ENCORE_PATH}', "flask_config.py"))
+"""
 
     with open(ENCORE_PATH + '/encore.wsgi', 'w') as config_file:
         config_file.write(wsgi)
 
     if not os.path.exists('/etc/ssl/certs/%s.crt' % (get_external_ip())):
         subprocess.call(["sudo", "openssl", "req", "-x509", "-nodes", "-days",
-            "365", "-newkey", "rsa:2048", "-keyout", "/etc/ssl/private/%s.key" % get_external_ip(),
-            "-out", "/etc/ssl/certs/%s.crt" % get_external_ip(), "-subj", "/C=US/ST=MI/L=A2/O=UM/CN=%s"
-            % get_external_ip()])
+            "365", "-newkey", "rsa:2048", "-keyout", f"/etc/ssl/private/{get_external_ip()}.key",
+            "-out", f"/etc/ssl/certs/{get_external_ip()}.crt", "-subj", f"/C=US/ST=MI/L=A2/O=UM/CN={get_external_ip()}"])
 
     subprocess.call(shlex.split('sudo a2ensite encore'))
     subprocess.call(shlex.split('sudo service apache2 restart'))
@@ -410,7 +389,7 @@ After=time-sync.target
 """)
 
         if INSTANCE_TYPE != "controller":
-            munge_file.write("RequiresMountsFor={}\n".format(MUNGE_DIR))
+            munge_file.write(f"RequiresMountsFor={MUNGE_DIR}\n")
 
         munge_file.write("""
 [Service]
@@ -428,9 +407,9 @@ WantedBy=multi-user.target""")
 
     if INSTANCE_TYPE != "controller":
         with open('/etc/fstab', 'a') as fstab_file:
-            fstab_file.write("""
-{1}:{0}    {0}     nfs      rw,hard,intr  0     0
-""".format(MUNGE_DIR, CONTROL_MACHINE))
+            fstab_file.write(f"""
+{CONTROL_MACHINE}:{MUNGE_DIR}    {MUNGE_DIR}     nfs      rw,hard,intr  0     0
+""")
         return
 
     if MUNGE_KEY:
